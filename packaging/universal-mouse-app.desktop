@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Universal Mouse App
+Comment=Native mouse settings with experimental GM320 support
+Exec=universal-mouse-app
+Icon=universal-mouse-app
+Terminal=false
+Categories=Settings;HardwareSettings;
+StartupWMClass=Universal Mouse App

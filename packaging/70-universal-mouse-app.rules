@@ -1,0 +1,5 @@
+# Grant the active desktop session access only to the supported mouse.
+# Runtime descriptor checks remain mandatory before application writes.
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="30fa", ATTRS{idProduct}=="1440", ENV{.UNIVERSAL_MOUSE}="1"
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ENV{.UNIVERSAL_MOUSE}=="1", ATTRS{bInterfaceNumber}=="01", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="30fa", ATTRS{idProduct}=="1440", TAG+="uaccess"

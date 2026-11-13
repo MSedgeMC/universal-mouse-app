@@ -1,7 +1,8 @@
 import {createSessionSettings} from './session-settings.js';
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
+import {writeFile} from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { deviceRequest, deviceResult } from './device-contract.js';
 import { lightingArguments } from './lighting-contract.js';
@@ -59,6 +60,20 @@ app.setPath('userData', path.join(app.getPath('appData'), 'resa-gm320-desktop'))
 if(!app.requestSingleInstanceLock())app.quit();
 app.on('second-instance',()=>{if(win){if(win.isMinimized())win.restore();win.focus();}});
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Presets',submenu:[{
+    label:'Export saved presets for Universal Mouse App…',
+    click:async()=>{
+      try {
+        if(!win)return;
+        const raw=await win.webContents.executeJavaScript("localStorage.getItem('resa.gm320.profiles.v1')",true);
+        if(typeof raw!=='string'||raw.length>100000)throw new Error('Save your presets first.');
+        const data=JSON.parse(raw);
+        if(data.version!==1||!Array.isArray(data.profiles)||data.profiles.length!==4)throw new Error('Saved preset format is invalid.');
+        const result=await dialog.showSaveDialog(win,{title:'Export saved presets',defaultPath:'gm320-presets.json',filters:[{name:'JSON presets',extensions:['json']}]});
+        if(!result.canceled&&result.filePath)await writeFile(result.filePath,JSON.stringify(data,null,2)+'\n',{mode:0o600,flag:'wx'});
+      }catch(error){dialog.showErrorBox('Preset export',error.message);}
+    }
+  },{role:'quit'}]}]));
   ipcMain.handle('macro:status',event=>{requireApplicationWindow(event);return linuxMacros.status();});
   ipcMain.handle('macro:apply',(event,input)=>{requireApplicationWindow(event);return linuxMacros.apply(macroRequest(input));});
   ipcMain.handle('macro:stop',event=>{requireApplicationWindow(event);return linuxMacros.stop();});

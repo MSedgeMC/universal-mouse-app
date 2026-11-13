@@ -1,27 +1,62 @@
 # Universal Mouse App
 
-A planned native desktop mouse configurator, starting with the Ant Esports GM320 / supported Instant controller family. The native implementation will use **C++20 and Qt 6 Widgets**.
+A native **C++20 / Qt 6 Widgets** mouse configurator for Linux, starting with the Ant Esports GM320 / Instant `30fa:1440` controller. No Electron, Node, Go, or application Python runtime is required.
 
-**Status: migration planning and source baseline.** This repository does not yet contain a working native executable. The existing Electron/Go/Python application is preserved under [`legacy/resa`](legacy/resa/README.md) as the reference for the port. The installed GM320 application is independent of this repository.
+**Status: experimental native release 0.1.0.** The native app runs on KDE Wayland and has been checked with a physical GM320. The repository name describes an extensible driver architecture; it does not promise support for arbitrary mice. Configuration writes require the supported USB identity, interface, and exact HID descriptor.
 
-The name describes the intended driver architecture. It does not mean arbitrary USB mice are supported. Hardware writes require a matching device identity, interface and protocol descriptor. Unrecognized mice will receive discovery information without configuration writes.
+## Features
 
-## First native release
+- Seven button assignments, including Disabled, with last-left-click protection.
+- Six DPI stages, enable/active-stage controls, stored polling selection, and device click timing.
+- Captured lighting settings: palette, slot enables, brightness, speed, supported effects, direction, symmetry, and button responses. Unsupported readback values are preserved.
+- Experimental live Static/Breathing/Off overrides, with illustrative animated previews.
+- Four local presets with separate Save and Apply actions; JSON import/export, undo, stable readback, private backups, rollback, and selective restore.
+- Linux keyboard macros: 67 keys, down/up/delay events, sequence preview, and three mouse triggers through the external Input Remapper service.
+- GM320-specific KDE pointer acceleration and scroll factor; GNOME/Cinnamon pointer speed and optional X11 imwheel integration have narrower scope.
+- Native 2D and software-rendered 3D previews, orbit/zoom, keyboard navigation, auto rotation, and app-local input testing.
 
-- Button assignments, six DPI stages and captured polling/lighting settings.
-- Four local presets, explicit Save versus Apply, backups, readback and rollback.
-- Linux keyboard macros through the separately installed Input Remapper service.
-- KDE pointer/scroll controls, with desktop-specific support exposed accurately.
-- A native 2D mouse view and optional 3D preview with a readable fallback.
+Onboard macros, onboard keyboard programming, hardware profile switching, additional mouse drivers, and complete vendor RGB parity remain unimplemented. Polling selection is a stored choice; this app does not measure the physical report rate. Most button/lighting writes still need physical behavior measurements.
 
-The first target is Linux. Onboard macro upload, onboard keyboard programming, hardware profile switching and complete vendor RGB parity remain separate protocol work. A language port does not establish those features or validate additional mice.
+## Install
 
-## Plan and build policy
+Download an archive or Debian package from [Releases](https://github.com/MSedgeMC/universal-mouse-app/releases). The first binary targets **x86_64 Ubuntu 24.04 or newer**, dynamically linked against system Qt 6.
 
-Read the [migration plan](docs/MIGRATION_PLAN.md) for milestones, architecture, feature coverage and release gates. The [baseline notes](docs/SOURCE_BASELINE.md) explain provenance and the retained source.
+For a system install:
 
-Compilation, dependency installation, full test suites, sanitizers, performance measurement and packaging run on the user's Simular Box. Local work is limited to source editing, review and lightweight final checks with the physical GM320. GUI tests use an isolated screen; they never drive the user's working desktop.
+```sh
+sudo apt install ./universal-mouse-app-0.1.0-Linux.deb
+```
 
-## License and attribution
+For a user install, install the Qt runtime packages (`libqt6widgets6`, `libqt6dbus6`, and `qt6-wayland`, or their distribution equivalents), extract the archive, and run:
 
-The application source retains the [MIT license](LICENSE) and Resa author's copyright. Upstream: [Rajan Dhamala / Resa](https://github.com/RajanDhamala/fantech-thor-ii-x16v2-linux), revision `fc12318e20c694cb1bf9965e2db0bce9514be94d`. Qt and external dependencies retain their own licenses; the distribution plan uses dynamic Qt linking and includes applicable notices.
+```sh
+./universal-mouse-app-0.1.0-Linux/usr/share/doc/universal-mouse-app/install-user.sh
+```
+
+Start **Universal Mouse App** from the application menu. Run `universal-mouse-app --mock` for a demo with no hardware or desktop writes. The app must run as a normal desktop user.
+
+The Debian package installs a narrowly scoped udev rule. For an archive installation without existing mouse access, install `usr/lib/udev/rules.d/70-universal-mouse-app.rules` into `/etc/udev/rules.d/`, reload the rules with `sudo udevadm control --reload-rules`, and reconnect the mouse. Do not grant access to every input device or run the GUI as root.
+
+Linux macros require a separately installed, running **Input Remapper 2.2.0** service. Only one app should manage its mapping for the mouse. Macros stop on normal app closure; a forced exit may leave the service mapping active. See [usage and migration](docs/USAGE.md).
+
+## Build and verify
+
+Dependencies: C++20 compiler, CMake 3.22+, Ninja, Qt 6.4+ Core/Gui/Widgets/DBus/Concurrent, and Qt Test for tests. Python is used only by development verification scripts. Packaging also needs `file` and Debian packaging tools.
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build --parallel 2
+# Run GUI tests inside an isolated session with private XDG directories.
+python3 tools/box-verify.py
+python3 tools/box-tests.py
+python3 tests/parity.py
+cmake --build build --target package
+```
+
+This project's implementation builds, dependency installation, full tests, sanitizers, measurements, and packaging were performed on Simular Box. Local checks were limited to the real device and isolated native Wayland rendering. See the [validation report](docs/VALIDATION.md), [migration plan](docs/MIGRATION_PLAN.md), and [source baseline](docs/SOURCE_BASELINE.md).
+
+## License
+
+[MIT](LICENSE), preserving Resa author Rajan Dhamala's attribution. The previous Electron/Go/Python app remains under [legacy/resa](legacy/resa/README.md) for protocol comparison and migration. Upstream revision: `fc12318e20c694cb1bf9965e2db0bce9514be94d` from [Rajan Dhamala / Resa](https://github.com/RajanDhamala/fantech-thor-ii-x16v2-linux).
+
+Qt is dynamically linked and retains its own licensing. Input Remapper is an optional, separately distributed GPL service. See [third-party notices](packaging/THIRD_PARTY.md).
