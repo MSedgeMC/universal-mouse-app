@@ -5,12 +5,14 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
+#include <QFrame>
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QSlider>
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTimer>
@@ -39,6 +41,14 @@ private:
   QJsonObject current, baseline, desktop;
   QString revisionToken;
   QLabel *status, *connection, *desktopNote, *macroNote, *tester;
+  QLabel *pageTitle, *pageSubtitle, *dpiSummary, *rateSummary, *lightSummary,
+      *presetState, *fireNote;
+  QVector<QPushButton *> navigation;
+  QVector<QFrame *> assignmentRows;
+  QVector<QLabel *> dpiValues;
+  QSlider *dpiSlider;
+  QSpinBox *dpiEditor;
+  int dpiEditing = 0;
   QComboBox *profileCombo, *polling, *effect, *direction, *liveEffect,
       *eventType, *eventKey, *trigger;
   QVector<QComboBox *> buttons, dpi, response;

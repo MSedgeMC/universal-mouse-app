@@ -1,5 +1,7 @@
 #include "window.h"
 #include "core/storage.h"
+#include "design.h"
+#include <QButtonGroup>
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QCoreApplication>
@@ -11,18 +13,18 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QJsonDocument>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QScrollArea>
+#include <QScrollBar>
+#include <QSizePolicy>
 #include <QStandardItemModel>
 #include <QStandardPaths>
+#include <QStyle>
+#include <QTabBar>
 #include <QVBoxLayout>
 #include <QtConcurrent>
 namespace mouse {
-static QLabel *label(const QString &text) {
-  auto *l = new QLabel(text);
-  l->setWordWrap(true);
-  return l;
-}
 static QPushButton *button(const QString &text, QLayout *layout = nullptr) {
   auto *b = new QPushButton(text);
   if (layout)
@@ -40,8 +42,8 @@ QJsonObject Window::profile() const {
 void Window::setProfile(QJsonObject p) { profiles[profileIndex] = p; }
 Window::Window(bool mock) : device(mock), integration(mock) {
   setWindowTitle("Universal Mouse App — GM320");
-  resize(1120, 800);
-  setMinimumSize(900, 680);
+  resize(1260, 840);
+  setMinimumSize(1050, 730);
   for (int i = 0; i < 4; ++i)
     profiles.append(defaultProfile());
   try {
@@ -105,37 +107,159 @@ void Window::message(const QString &text, bool error) {
   status->setText(text);
   status->setStyleSheet(error ? "color:#ffabb3" : "color:#b6cadb");
 }
+class LevelSpin : public QSpinBox {
+public:
+  explicit LevelSpin(bool brightness) : brightness(brightness) {
+    setRange(0, 7);
+    lineEdit()->setReadOnly(true);
+  }
+
+protected:
+  QString textFromValue(int value) const override {
+    if (brightness)
+      return value <= 6 ? QString::number(qRound((6 - value) * 100. / 6)) + " %"
+                        : "Unverified value";
+    const QStringList names = {"Slowest",        "Slow",          "Balanced",
+                               "Quick",          "Fast",          "Fastest",
+                               "Unverified (6)", "Unverified (7)"};
+    return names.value(value);
+  }
+
+private:
+  bool brightness;
+};
 void Window::build() {
   auto *center = new QWidget;
+  center->setObjectName("app-root");
   setCentralWidget(center);
-  auto *layout = new QVBoxLayout(center);
-  layout->setContentsMargins(24, 20, 24, 20);
-  layout->setSpacing(14);
+  auto *shell = new QHBoxLayout(center);
+  shell->setContentsMargins(0, 0, 0, 0);
+  shell->setSpacing(0);
+  auto *sidebar = new QWidget;
+  sidebar->setObjectName("sidebar");
+  sidebar->setFixedWidth(220);
+  auto *sidebarShell = new QVBoxLayout(sidebar);
+  sidebarShell->setContentsMargins(0, 0, 0, 0);
+  auto *sidebarScroll = new QScrollArea;
+  sidebarScroll->setWidgetResizable(true);
+  sidebarScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  sidebarScroll->setObjectName("sidebar-scroll");
+  auto *sidebarContent = new QWidget;
+  sidebarScroll->setWidget(sidebarContent);
+  sidebarShell->addWidget(sidebarScroll);
+  auto *rail = new QVBoxLayout(sidebarContent);
+  rail->setSizeConstraint(QLayout::SetMinimumSize);
+  rail->setContentsMargins(20, 26, 20, 22);
+  rail->setSpacing(12);
+  auto *brand = new QHBoxLayout;
+  auto *mark = new QLabel;
+  mark->setFixedSize(32, 32);
+  mark->setPixmap(designIcon("brand", QColor("#a9e9cc"), 30).pixmap(30, 30));
+  brand->addWidget(mark);
+  brand->addWidget(designLabel("UNIVERSAL", "brand"));
+  rail->addLayout(brand);
+  rail->addWidget(designLabel("MOUSE STUDIO", "eyebrow"));
+  rail->addSpacing(25);
+  auto *deviceCard = new QFrame;
+  deviceCard->setObjectName("device-card");
+  auto *dc = new QVBoxLayout(deviceCard);
+  dc->setSizeConstraint(QLayout::SetMinimumSize);
+  dc->setContentsMargins(15, 16, 15, 16);
+  dc->setSpacing(8);
+  dc->addWidget(designLabel("YOUR DEVICE", "eyebrow"));
+  auto *deviceIcon = new QLabel;
+  deviceIcon->setPixmap(
+      designIcon("mouse", QColor("#a9e9cc"), 42).pixmap(42, 42));
+  dc->addWidget(deviceIcon);
+  dc->addWidget(designLabel("Ant Esports GM320", "section"));
+  dc->addWidget(designLabel("8 physical buttons · Wired", "muted"));
+  connection =
+      designLabel(device.mock ? "Demo device" : "Connecting…", "badge");
+  dc->addWidget(connection);
+  rail->addWidget(deviceCard);
+  rail->addSpacing(16);
+  rail->addWidget(designLabel("DEVICE SETTINGS", "eyebrow"));
+  QStringList names = {"Assignments", "Performance", "Lighting", "Macros",
+                       "Desktop"};
+  QStringList icons = {"buttons", "performance", "lighting", "macro",
+                       "desktop"};
+  auto *navGroup = new QButtonGroup(this);
+  navGroup->setExclusive(true);
+  for (int n = 0; n < names.size(); ++n) {
+    auto *nav = new QPushButton(names[n]);
+    nav->setProperty("role", "nav");
+    nav->setCheckable(true);
+    nav->setIcon(designIcon(icons[n]));
+    nav->setIconSize(QSize(20, 20));
+    nav->setObjectName("nav-" + QString::number(n));
+    navigation << nav;
+    navGroup->addButton(nav, n);
+    rail->addWidget(nav);
+  }
+  rail->addStretch();
+  rail->addWidget(designLabel("LOCAL PRESET", "eyebrow"));
+  profileCombo = new QComboBox;
+  profileCombo->setObjectName("profile");
+  profileCombo->addItems({"Office", "Game I", "Game II", "Game III"});
+  rail->addWidget(profileCombo);
+  presetState = designLabel("Saved locally", "muted");
+  rail->addWidget(presetState);
+  auto *presetTools = new QHBoxLayout;
+  presetTools->setSpacing(7);
+  connect(button("Import", presetTools), &QPushButton::clicked, this,
+          &Window::importFile);
+  connect(button("Export", presetTools), &QPushButton::clicked, this,
+          &Window::exportFile);
+  rail->addLayout(presetTools);
+  auto *version = designLabel("LINUX  /  0.2.0", "eyebrow");
+  rail->addSpacing(16);
+  rail->addWidget(version);
+  shell->addWidget(sidebar);
+  auto *workspace = new QWidget;
+  workspace->setObjectName("workspace");
+  auto *layout = new QVBoxLayout(workspace);
+  layout->setContentsMargins(28, 25, 28, 0);
+  layout->setSpacing(18);
+  shell->addWidget(workspace, 1);
   auto *head = new QHBoxLayout;
-  auto *title = new QLabel("Universal Mouse App");
-  title->setStyleSheet("font-size:25px;font-weight:600");
-  head->addWidget(title);
-  head->addStretch();
-  connection = label(device.mock ? "Demo · no device writes"
-                                 : "Searching for a supported mouse");
-  head->addWidget(connection);
-  refreshButton = button("Read mouse", head);
+  auto *headText = new QVBoxLayout;
+  headText->setSpacing(5);
+  headText->addWidget(designLabel("GM320  /  DEVICE CONFIGURATION", "eyebrow"));
+  pageTitle = designLabel("Button assignments", "title");
+  pageSubtitle = designLabel("Make every control work your way.", "muted");
+  headText->addWidget(pageTitle);
+  headText->addWidget(pageSubtitle);
+  head->addLayout(headText, 1);
+  refreshButton = button("Sync device", head);
+  refreshButton->setProperty("role", "quiet");
+  refreshButton->setIcon(designIcon("refresh"));
   connect(refreshButton, &QPushButton::clicked, this, &Window::loadMouse);
   layout->addLayout(head);
-  auto *profileRow = new QHBoxLayout;
-  profileRow->addWidget(new QLabel("Local preset"));
-  profileCombo = new QComboBox;
-  profileCombo->addItems({"Office", "Game I", "Game II", "Game III"});
-  profileCombo->setObjectName("profile");
-  profileRow->addWidget(profileCombo);
-  profileRow->addStretch();
-  connect(button("Import presets", profileRow), &QPushButton::clicked, this,
-          &Window::importFile);
-  connect(button("Export presets", profileRow), &QPushButton::clicked, this,
-          &Window::exportFile);
-  layout->addLayout(profileRow);
+  auto *summary = new QHBoxLayout;
+  summary->setSpacing(12);
+  auto addMetric = [&](QString text, QString icon, QLabel **value) {
+    QVBoxLayout *box;
+    auto *card = designCard(&box);
+    box->setContentsMargins(16, 12, 16, 12);
+    box->setSpacing(7);
+    auto *row = new QHBoxLayout;
+    row->addWidget(designLabel(text, "eyebrow"));
+    row->addStretch();
+    auto *i = new QLabel;
+    i->setPixmap(designIcon(icon, QColor("#677584"), 18).pixmap(18, 18));
+    row->addWidget(i);
+    box->addLayout(row);
+    *value = designLabel("—", "value");
+    box->addWidget(*value);
+    summary->addWidget(card, 1);
+  };
+  addMetric("PRESET DPI", "performance", &dpiSummary);
+  addMetric("PRESET POLLING", "mouse", &rateSummary);
+  addMetric("LIGHTING", "lighting", &lightSummary);
+  layout->addLayout(summary);
   tabs = new QTabWidget;
   tabs->setObjectName("tabs");
+  tabs->tabBar()->hide();
   layout->addWidget(tabs, 1);
   auto addPage = [&](QString name) {
     auto *content = new QWidget;
@@ -145,149 +269,257 @@ void Window::build() {
     scroll->setWidget(content);
     tabs->addTab(scroll, name);
     auto *v = new QVBoxLayout(content);
-    v->setContentsMargins(20, 20, 20, 20);
+    v->setContentsMargins(0, 0, 6, 0);
+    v->setSpacing(16);
     return v;
   };
-  auto *bv = addPage("Buttons");
+  auto *bv = addPage("Assignments");
   auto *bh = new QHBoxLayout;
-  auto *viewColumn = new QVBoxLayout;
-  viewer = new Viewer;
-  viewColumn->addWidget(viewer, 1);
+  bh->setSpacing(18);
+  QVBoxLayout *viewColumn;
+  auto *previewCard =
+      designCard(&viewColumn, "Your mouse",
+                 "Select a numbered control to edit its assignment.");
   auto *viewControls = new QHBoxLayout;
   auto *three = new QCheckBox("3D view");
   viewControls->addWidget(three);
-  auto *rotate = new QCheckBox("Auto rotate");
+  auto *rotate = new QCheckBox("Rotate");
   viewControls->addWidget(rotate);
-  connect(rotate, &QCheckBox::toggled, viewer, &Viewer::setAutoRotate);
-  auto *test = new QCheckBox("Test inputs");
-  viewControls->addWidget(test);
-  connect(test, &QCheckBox::toggled, viewer, &Viewer::setTestEnabled);
-  connect(three, &QCheckBox::toggled, viewer, &Viewer::setThreeD);
-  connect(button("Reset view", viewControls), &QPushButton::clicked, viewer,
-          &Viewer::resetView);
+  viewControls->addStretch();
+  auto *reset = button("Reset", viewControls);
+  reset->setProperty("role", "quiet");
   viewColumn->addLayout(viewControls);
-  tester = label("Click or scroll inside the preview to test events.");
+  viewer = new Viewer;
+  viewer->setMinimumSize(340, 285);
+  viewColumn->setSpacing(10);
+  viewColumn->addWidget(viewer, 1);
+  connect(three, &QCheckBox::toggled, viewer, &Viewer::setThreeD);
+  connect(rotate, &QCheckBox::toggled, viewer, &Viewer::setAutoRotate);
+  connect(reset, &QPushButton::clicked, viewer, &Viewer::resetView);
+  auto *test = new QCheckBox("Test mouse input in this view");
+  viewColumn->addWidget(test);
+  connect(test, &QCheckBox::toggled, viewer, &Viewer::setTestEnabled);
+  tester = designLabel("Input test stays inside this view.", "muted");
   viewColumn->addWidget(tester);
   connect(viewer, &Viewer::tested, tester, &QLabel::setText);
-  bh->addLayout(viewColumn, 1);
-  auto *assign = new QFormLayout;
-  for (int i = 0; i < 7; ++i) {
+  bh->addWidget(previewCard, 5);
+  QVBoxLayout *assign;
+  auto *assignCard = designCard(&assign, "Assignments");
+  assign->setSpacing(6);
+  assign->setContentsMargins(16, 16, 16, 16);
+  for (int i = 0; i < 8; ++i) {
+    auto *row = new QFrame;
+    row->setProperty("surface", "inset");
+    row->setProperty("selected", i == 0);
+    row->setObjectName("assignment-" + QString::number(i + 1));
+    assignmentRows << row;
+    auto *r = new QHBoxLayout(row);
+    r->setContentsMargins(10, 5, 10, 5);
+    r->setSpacing(10);
+    auto *number = designLabel(QString::number(i + 1), "number");
+    number->setFixedSize(25, 25);
+    number->setAlignment(Qt::AlignCenter);
+    r->addWidget(number);
+    auto *name = designLabel(i < 7 ? buttonNames[i] : "Fire button");
+    name->setMinimumWidth(90);
+    r->addWidget(name, 1);
     auto *c = new QComboBox;
-    c->addItems(mouse::actions);
+    c->setMinimumWidth(125);
+    c->setMaximumWidth(175);
+    c->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     c->setObjectName("button" + QString::number(i + 1));
-    buttons << c;
-    assign->addRow(QString::number(i + 1) + " · " + buttonNames[i], c);
-    connect(c, &QComboBox::currentTextChanged, this, [this, i] {
-      if (!rendering) {
-        viewer->setSelected(i);
-        collect();
-      }
-    });
+    if (i < 7) {
+      c->addItems(mouse::actions);
+      buttons << c;
+      connect(c, &QComboBox::currentTextChanged, this, [this, i] {
+        if (!rendering) {
+          viewer->setSelected(i);
+          for (int n = 0; n < assignmentRows.size(); ++n) {
+            assignmentRows[n]->setProperty("selected", n == i);
+            assignmentRows[n]->style()->unpolish(assignmentRows[n]);
+            assignmentRows[n]->style()->polish(assignmentRows[n]);
+          }
+          collect();
+        }
+      });
+    } else {
+      c->addItem("Unverified");
+      c->setEnabled(false);
+      c->setToolTip("The dedicated fire button is present. Its remapping "
+                    "protocol is not verified.");
+    }
+    r->addWidget(c, 2);
+    assign->addWidget(row);
   }
-  bh->addLayout(assign, 1);
+  fireNote = designLabel(
+      "8 · Dedicated fire button. Remapping support is not verified.", "muted");
+  assign->addWidget(fireNote);
+  assign->addStretch();
+  bh->addWidget(assignCard, 5);
   bv->addLayout(bh, 1);
-  bv->addWidget(label("Seven stored button slots · exact physical mapping and "
-                      "most writes remain experimental."));
-  connect(viewer, &Viewer::selected, this,
-          [this](int n) { buttons[n]->setFocus(); });
-  auto *sv = addPage("Sensitivity");
-  auto *grid = new QGridLayout;
-  grid->addWidget(new QLabel("Stage"), 0, 0);
-  grid->addWidget(new QLabel("Enabled"), 0, 1);
-  grid->addWidget(new QLabel("DPI"), 0, 2);
-  grid->addWidget(new QLabel("Active"), 0, 3);
+  connect(viewer, &Viewer::selected, this, [this](int n) {
+    for (int i = 0; i < assignmentRows.size(); ++i) {
+      assignmentRows[i]->setProperty("selected", i == n);
+      assignmentRows[i]->style()->unpolish(assignmentRows[i]);
+      assignmentRows[i]->style()->polish(assignmentRows[i]);
+    }
+    if (n < 7)
+      buttons[n]->setFocus();
+    else {
+      fireNote->setText("Fire button selected · its separate remapping "
+                        "protocol has not been verified.");
+    }
+  });
+  auto *sv = addPage("Performance");
+  QVBoxLayout *stagesLayout;
+  auto *stagesCard =
+      designCard(&stagesLayout, "DPI stages",
+                 "Choose a stage to edit. The active stage must stay enabled.");
+  auto *stageGrid = new QGridLayout;
+  stageGrid->setSpacing(10);
+  auto *stageGroup = new QButtonGroup(this);
+  stageGroup->setExclusive(true);
+  const QStringList stageColors = {"#a9e9cc", "#93c7f5", "#c6aff3",
+                                   "#e9b7c7", "#e8cea1", "#91d5df"};
   for (int i = 0; i < 6; ++i) {
+    auto *card = new QFrame;
+    card->setProperty("surface", "inset");
+    auto *v = new QVBoxLayout(card);
+    v->setContentsMargins(12, 12, 12, 12);
+    v->setSpacing(9);
+    auto *row = new QHBoxLayout;
+    row->addWidget(designLabel("STAGE " + QString::number(i + 1), "eyebrow"));
     auto *en = new QCheckBox;
+    en->setAccessibleName("Enable DPI stage " + QString::number(i + 1));
+    row->addStretch();
+    row->addWidget(en);
+    v->addLayout(row);
+    auto *value = designLabel("—", "value");
+    value->setStyleSheet("color:" + stageColors[i] + ";font-size:24px");
+    dpiValues << value;
+    v->addWidget(value);
     auto *d = new QComboBox;
-    for (int v : dpis)
-      d->addItem(QString::number(v), v);
-    auto *r = new QRadioButton;
+    for (int dpiValue : dpis)
+      d->addItem(QString::number(dpiValue), dpiValue);
+    d->setObjectName("dpi-stage-" + QString::number(i + 1));
+    v->addWidget(d);
+    auto *r = new QRadioButton("Active");
+    stageGroup->addButton(r);
     dpiEnabled << en;
     dpi << d;
     stage << r;
-    grid->addWidget(new QLabel(QString::number(i + 1)), i + 1, 0);
-    grid->addWidget(en, i + 1, 1);
-    grid->addWidget(d, i + 1, 2);
-    grid->addWidget(r, i + 1, 3);
+    v->addWidget(r);
+    auto *edit = button("Adjust");
+    edit->setProperty("role", "quiet");
+    v->addWidget(edit);
+    connect(edit, &QPushButton::clicked, this, [this, i] {
+      dpiEditing = i;
+      render();
+    });
     connect(en, &QCheckBox::toggled, this, [this] { collect(); });
     connect(d, &QComboBox::currentIndexChanged, this, [this] { collect(); });
     connect(r, &QRadioButton::toggled, this, [this] { collect(); });
+    stageGrid->addWidget(card, 0, i);
   }
-  sv->addLayout(grid);
+  stagesLayout->addLayout(stageGrid);
+  auto *editor = new QHBoxLayout;
+  editor->addWidget(designLabel("Stage adjustment", "muted"));
+  dpiSlider = new QSlider(Qt::Horizontal);
+  dpiSlider->setRange(0, dpis.size() - 1);
+  editor->addWidget(dpiSlider, 1);
+  dpiEditor = spin(200, 12800);
+  dpiEditor->setSuffix(" DPI");
+  dpiEditor->setMinimumWidth(135);
+  editor->addWidget(dpiEditor);
+  stagesLayout->addLayout(editor);
+  connect(dpiSlider, &QSlider::valueChanged, this, [this](int v) {
+    if (!rendering)
+      dpi[dpiEditing]->setCurrentIndex(v);
+  });
+  connect(dpiEditor, &QSpinBox::editingFinished, this, [this] {
+    if (rendering)
+      return;
+    int v = dpiEditor->value(), best = 0;
+    for (int i = 1; i < dpis.size(); ++i)
+      if (qAbs(dpis[i] - v) < qAbs(dpis[best] - v))
+        best = i;
+    dpi[dpiEditing]->setCurrentIndex(best);
+    render();
+  });
+  sv->addWidget(stagesCard);
+  QVBoxLayout *responseLayout;
+  auto *responseCard = designCard(&responseLayout, "Response");
   auto *sf = new QFormLayout;
+  sf->setSpacing(12);
   polling = new QComboBox;
   for (int rate : {125, 250, 500, 1000})
     polling->addItem(QString::number(rate) + " Hz", rate);
   sf->addRow("Polling choice", polling);
   timing = spin(0, 65535);
   timing->setSuffix(" ms");
-  sf->addRow("Device click timing", timing);
-  sv->addLayout(sf);
-  sv->addWidget(label(
-      "Polling is a stored choice, not a measured report rate. Device timing "
-      "edits are limited to 8–300 ms; existing values are preserved."));
+  sf->addRow("Click timing", timing);
+  auto *responseRow = new QHBoxLayout;
+  auto *pollBox = new QVBoxLayout;
+  pollBox->addWidget(designLabel("Polling choice", "muted"));
+  pollBox->addWidget(polling);
+  auto *clickBox = new QVBoxLayout;
+  clickBox->addWidget(designLabel("Click timing", "muted"));
+  clickBox->addWidget(timing);
+  sf->removeWidget(polling);
+  sf->removeWidget(timing);
+  delete sf;
+  responseRow->addLayout(pollBox, 1);
+  responseRow->addLayout(clickBox, 1);
+  responseLayout->addLayout(responseRow);
+  responseLayout->addWidget(designLabel(
+      "Timing edits: 8–300 ms. Existing values remain intact.", "muted"));
+  sv->addWidget(responseCard);
+  sv->addStretch();
   connect(polling, &QComboBox::currentIndexChanged, this,
           [this] { collect(); });
   connect(timing, &QSpinBox::valueChanged, this, [this] { collect(); });
-  auto *desktopBox = new QGroupBox("Linux desktop pointer and scrolling");
-  auto *df = new QFormLayout(desktopBox);
-  gain = new QDoubleSpinBox;
-  gain->setRange(-1, 1);
-  gain->setSingleStep(.2);
-  scroll = new QDoubleSpinBox;
-  scroll->setRange(.25, 11);
-  scroll->setSingleStep(.25);
-  wheelEnabled = new QCheckBox("Enable X11 wheel helper");
-  df->addRow("Pointer acceleration", gain);
-  df->addRow("Scroll factor", scroll);
-  df->addRow(wheelEnabled);
-  desktopNote = label("Loading desktop controls…");
-  df->addRow(desktopNote);
-  auto *dr = new QHBoxLayout;
-  connect(button("Reload desktop", dr), &QPushButton::clicked, this,
-          &Window::refreshDesktop);
-  connect(button("Apply desktop settings", dr), &QPushButton::clicked, this,
-          [this] {
-            QString rev = desktop["revision"].toString();
-            double g = gain->value(), s = scroll->value();
-            bool en = wheelEnabled->isChecked();
-            enqueue([this, rev, g, s,
-                     en] { return integration.desktopApply(rev, g, s, en); },
-                    [this](auto r) {
-                      desktop = r;
-                      message("Desktop settings applied and read back");
-                      refreshDesktop();
-                    });
-          });
-  df->addRow(dr);
-  sv->addWidget(desktopBox);
-  sv->addStretch();
   auto *lv = addPage("Lighting");
+  auto *lightTop = new QHBoxLayout;
+  lightTop->setSpacing(16);
+  QVBoxLayout *lightPreviewLayout;
+  auto *lightPreview =
+      designCard(&lightPreviewLayout, "Lighting preview",
+                 "Illustrative colors; the physical effect can differ.");
   lightingViewer = new Viewer;
-  lightingViewer->setMaximumHeight(340);
-  lv->addWidget(lightingViewer);
-  lv->addWidget(
-      label("Illustrative lighting preview · hardware effects may differ"));
+  lightingViewer->setMinimumSize(310, 300);
+  lightPreviewLayout->addWidget(lightingViewer, 1);
+  lightTop->addWidget(lightPreview, 4);
+  QVBoxLayout *effectLayout;
+  auto *effectCard = designCard(&effectLayout, "Effect settings");
   auto *lf = new QFormLayout;
+  lf->setSpacing(13);
   effect = new QComboBox;
   effect->addItems(effects);
   direction = new QComboBox;
   direction->addItems(directions);
-  brightness = spin(0, 7);
-  brightness->setSpecialValueText("Maximum (0)");
-  speed = spin(0, 7);
+  brightness = new LevelSpin(true);
+  speed = new LevelSpin(false);
   symmetry = new QCheckBox("Symmetric pattern");
   lf->addRow("Stored effect", effect);
-  lf->addRow("Brightness code (0–6 editable)", brightness);
-  lf->addRow("Speed code (0–5 editable)", speed);
+  lf->addRow("Brightness", brightness);
+  lf->addRow("Animation speed", speed);
   lf->addRow("Direction", direction);
   lf->addRow(symmetry);
-  lv->addLayout(lf);
+  effectLayout->addLayout(lf);
+  effectLayout->addWidget(designLabel(
+      "Unsupported values read from your mouse remain intact.", "muted"));
+  effectLayout->addStretch();
+  lightTop->addWidget(effectCard, 5);
+  lv->addLayout(lightTop);
+  QVBoxLayout *paletteLayout;
+  auto *paletteCard = designCard(&paletteLayout, "Color palette");
   auto *paletteGrid = new QGridLayout;
-  QStringList headings = {"Slot", "Color", "Enabled", "Button response",
-                          "Response on"};
+  paletteGrid->setHorizontalSpacing(14);
+  paletteGrid->setVerticalSpacing(8);
+  QStringList headings = {"COLOR", "PALETTE", "ENABLED", "ON BUTTON PRESS",
+                          "RESPONSE"};
   for (int n = 0; n < headings.size(); ++n)
-    paletteGrid->addWidget(new QLabel(headings[n]), 0, n);
+    paletteGrid->addWidget(designLabel(headings[n], "eyebrow"), 0, n);
   for (int i = 0; i < 7; ++i) {
     auto *c = new QPushButton;
     auto *en = new QCheckBox;
@@ -298,7 +530,8 @@ void Window::build() {
     colorEnabled << en;
     response << r;
     responseEnabled << re;
-    paletteGrid->addWidget(new QLabel(QString::number(i + 1)), i + 1, 0);
+    paletteGrid->addWidget(designLabel(QString::number(i + 1), "muted"), i + 1,
+                           0);
     paletteGrid->addWidget(c, i + 1, 1);
     paletteGrid->addWidget(en, i + 1, 2);
     paletteGrid->addWidget(r, i + 1, 3);
@@ -331,66 +564,83 @@ void Window::build() {
     connect(r, &QComboBox::currentTextChanged, this, [this] { collect(); });
     connect(re, &QCheckBox::toggled, this, [this] { collect(); });
   }
-  lv->addLayout(paletteGrid);
+
+  paletteLayout->addLayout(paletteGrid);
+  lv->addWidget(paletteCard);
   for (auto *c : {effect, direction})
     connect(c, &QComboBox::currentTextChanged, this, [this] { collect(); });
   for (auto *s : {brightness, speed})
     connect(s, &QSpinBox::valueChanged, this, [this] { collect(); });
   connect(symmetry, &QCheckBox::toggled, this, [this] { collect(); });
-  auto *liveBox =
-      new QGroupBox("Live color override · experimental, not read back");
-  auto *liveForm = new QFormLayout(liveBox);
-  liveEnabled = new QCheckBox("Apply this override after hardware settings");
+  QVBoxLayout *liveLayout;
+  auto *liveBox = designCard(&liveLayout, "Live color",
+                             "Experimental override; the device cannot report "
+                             "its active effect back.");
+  auto *liveForm = new QFormLayout;
+  liveForm->setSpacing(10);
+  liveEnabled = new QCheckBox("Use live color override");
   liveEffect = new QComboBox;
   liveEffect->addItems({"Static", "Breathing", "Off"});
-  liveSpeed = spin(0, 5);
-  auto *colorButton = new QPushButton("Choose live color");
+  liveSpeed = new LevelSpin(false);
+  liveSpeed->setRange(0, 5);
+  auto *colorButton = button("Choose color");
   connect(colorButton, &QPushButton::clicked, this, [this] {
     QColor c = QColorDialog::getColor(liveColor, this);
     if (c.isValid()) {
       liveColor = c;
       collect();
-      viewer->setColor(c);
     }
   });
   liveForm->addRow(liveEnabled);
   liveForm->addRow("Effect", liveEffect);
-  liveForm->addRow(colorButton);
+  liveForm->addRow("Color", colorButton);
   liveForm->addRow("Speed", liveSpeed);
+  liveLayout->addLayout(liveForm);
   lv->addWidget(liveBox);
   connect(liveEnabled, &QCheckBox::toggled, this, [this] { collect(); });
   connect(liveEffect, &QComboBox::currentIndexChanged, this,
           [this] { collect(); });
   connect(liveSpeed, &QSpinBox::valueChanged, this, [this] { collect(); });
-  auto *experimental =
-      new QGroupBox("Advanced: vendor default lighting report");
+  auto *advancedToggle = new QPushButton("Advanced lighting");
+  advancedToggle->setProperty("role", "quiet");
+  advancedToggle->setCheckable(true);
+  lv->addWidget(advancedToggle, 0, Qt::AlignLeft);
+  auto *experimental = new QGroupBox("Experimental vendor report");
+  experimental->setVisible(false);
+  connect(advancedToggle, &QPushButton::toggled, experimental,
+          &QWidget::setVisible);
   auto *xf = new QFormLayout(experimental);
   experimentalBrightness = spin(0, 7);
   experimentalSpeed = spin(0, 7);
-  xf->addRow("Brightness", experimentalBrightness);
-  xf->addRow("Speed", experimentalSpeed);
-  auto *xb = button("Apply experimental report");
+  xf->addRow("Brightness code", experimentalBrightness);
+  xf->addRow("Speed code", experimentalSpeed);
+  auto *xb = button("Send experimental report");
   xf->addRow(xb);
-  xf->addRow(label("One captured report; effect/persistence unverified. "
-                   "Current lighting is not backed up by this operation."));
+  xf->addRow(
+      designLabel("One captured report; effect and persistence are unverified. "
+                  "This operation cannot back up live lighting.",
+                  "muted"));
   connect(xb, &QPushButton::clicked, this, [this] {
     auto request = QJsonObject{{"brightness", experimentalBrightness->value()},
                                {"speed", experimentalSpeed->value()}};
     enqueue(
         [this, request] { return device.operation("experimental", request); },
         [this](auto) {
-          message("Kernel accepted experimental report; physical effect "
-                  "unverified");
+          message(
+              "Experimental report accepted. Physical effect is unverified.");
         });
   });
   lv->addWidget(experimental);
   lv->addStretch();
   auto *mv = addPage("Macros");
-  mv->addWidget(label("Linux software macros · firmware-only DPI/light buttons "
-                      "cannot trigger them. Presets are not stored onboard."));
+  QVBoxLayout *macroLayout;
+  auto *macroCard =
+      designCard(&macroLayout, "Sequence editor",
+                 "Create a keyboard sequence for a Linux mouse trigger.");
   events = new QListWidget;
   events->setObjectName("macro-events");
-  mv->addWidget(events, 1);
+  events->setMinimumHeight(180);
+  macroLayout->addWidget(events, 1);
   auto *er = new QHBoxLayout;
   eventType = new QComboBox;
   eventType->addItems({"Key down", "Key up", "Delay"});
@@ -431,7 +681,7 @@ void Window::build() {
     render();
     dirty();
   });
-  connect(button("Clear", er), &QPushButton::clicked, this, [this] {
+  connect(button("Clear all", er), &QPushButton::clicked, this, [this] {
     auto p = profile();
     p["macro"] = QJsonArray();
     setProfile(p);
@@ -439,20 +689,26 @@ void Window::build() {
     render();
     dirty();
   });
-  mv->addLayout(er);
+
+  macroLayout->addLayout(er);
+  mv->addWidget(macroCard, 1);
+  QVBoxLayout *triggerLayout;
+  auto *triggerCard = designCard(&triggerLayout, "Trigger & playback");
   auto *mr = new QHBoxLayout;
   trigger = new QComboBox;
-  trigger->addItem("Back / side button", 275);
-  trigger->addItem("Forward / side button", 276);
+  trigger->addItem("Back button", 275);
+  trigger->addItem("Forward button", 276);
   trigger->addItem("Middle click", 274);
-  mr->addWidget(trigger);
-  macroApplyButton = button("Apply Linux macro", mr);
-  macroStopButton = button("Stop Linux macro", mr);
-  previewButton = button("Preview sequence", mr);
-  mv->addLayout(mr);
-  macroNote = label("Input Remapper is a separate service. Normal shutdown "
-                    "stops this app's macro; forced exit can leave it active.");
-  mv->addWidget(macroNote);
+  mr->addWidget(trigger, 1);
+  macroApplyButton = button("Enable macro", mr);
+  macroStopButton = button("Stop", mr);
+  previewButton = button("Preview", mr);
+  triggerLayout->addLayout(mr);
+  macroNote = designLabel("Uses Input Remapper. Macros run on Linux while this "
+                          "app is open; they are not stored onboard.",
+                          "muted");
+  triggerLayout->addWidget(macroNote);
+  mv->addWidget(triggerCard);
   connect(trigger, &QComboBox::currentIndexChanged, this,
           [this] { collect(); });
   connect(macroApplyButton, &QPushButton::clicked, this, [this] {
@@ -491,20 +747,69 @@ void Window::build() {
     auto e = a[previewAt++].toObject();
     previewTimer.start(e["type"] == "delay" ? e["ms"].toInt() : 180);
   });
-  connect(tabs, &QTabWidget::currentChanged, this, [this] { stopPreview(); });
-  status = label("Loading settings…");
-  status->setMinimumHeight(38);
-  layout->addWidget(status);
+
+  auto *dv = addPage("Desktop");
+  QVBoxLayout *desktopLayout;
+  auto *desktopCard = designCard(&desktopLayout, "Pointer & scrolling",
+                                 "Desktop controls for your mouse.");
+  auto *df = new QFormLayout;
+  df->setSpacing(16);
+  gain = new QDoubleSpinBox;
+  gain->setRange(-1, 1);
+  gain->setSingleStep(.1);
+  scroll = new QDoubleSpinBox;
+  scroll->setRange(.25, 11);
+  scroll->setSingleStep(.25);
+  wheelEnabled = new QCheckBox("Enable X11 scroll helper");
+  df->addRow("Pointer acceleration", gain);
+  df->addRow("Scroll multiplier", scroll);
+  df->addRow(wheelEnabled);
+  desktopLayout->addLayout(df);
+  desktopNote = designLabel("Reading desktop settings…", "muted");
+  desktopLayout->addWidget(desktopNote);
+  auto *dr = new QHBoxLayout;
+  connect(button("Reload", dr), &QPushButton::clicked, this,
+          &Window::refreshDesktop);
+  auto *desktopApply = button("Apply desktop settings", dr);
+  desktopApply->setProperty("role", "primary");
+  connect(desktopApply, &QPushButton::clicked, this, [this] {
+    QString rev = desktop["revision"].toString();
+    double g = gain->value(), s = scroll->value();
+    bool en = wheelEnabled->isChecked();
+    enqueue([this, rev, g, s,
+             en] { return integration.desktopApply(rev, g, s, en); },
+            [this](auto r) {
+              desktop = r;
+              message("Desktop settings applied and read back.");
+              QTimer::singleShot(0, this, &Window::refreshDesktop);
+            });
+  });
+  desktopLayout->addLayout(dr);
+  dv->addWidget(desktopCard);
+  dv->addStretch();
+  auto *footerCard = new QFrame;
+  footerCard->setObjectName("footer");
+  auto *foot = new QVBoxLayout(footerCard);
+  foot->setContentsMargins(0, 13, 0, 16);
+  foot->setSpacing(9);
+  status = designLabel("Connecting to your mouse…", "muted");
+  status->setMinimumHeight(32);
+  foot->addWidget(status);
   auto *footer = new QHBoxLayout;
-  restoreButton = button("Restore last hardware change", footer);
+  restoreButton = button("Restore last change", footer);
+  restoreButton->setProperty("role", "quiet");
+  restoreButton->setIcon(designIcon("restore"));
   footer->addStretch();
-  undoButton = button("Undo local edits", footer);
+  undoButton = button("Discard edits", footer);
+  undoButton->setProperty("role", "quiet");
   saveButton = button("Save preset", footer);
-  applyButton = button("Apply mouse settings", footer);
+  saveButton->setIcon(designIcon("save"));
+  applyButton = button("Apply to mouse", footer);
   applyButton->setObjectName("apply-mouse");
-  applyButton->setStyleSheet("background:#b6384b;color:white;border:0;font-"
-                             "weight:600;padding:10px 22px");
-  layout->addLayout(footer);
+  applyButton->setProperty("role", "primary");
+  applyButton->setIcon(designIcon("arrow", QColor("#142c20")));
+  foot->addLayout(footer);
+  layout->addWidget(footerCard);
   connect(saveButton, &QPushButton::clicked, this, [this] {
     try {
       saveProfiles();
@@ -546,22 +851,27 @@ void Window::build() {
     render();
     dirty();
   });
-  setStyleSheet(
-      "QMainWindow,QWidget{background:#111820;color:#e4ecf4;font-family:Ubuntu;"
-      "} QGroupBox{border:1px solid "
-      "#344351;border-radius:7px;margin-top:15px;padding:15px;} "
-      "QGroupBox::title{subcontrol-origin:margin;left:14px;} "
-      "QComboBox,QSpinBox,QDoubleSpinBox,QListWidget{background:#202c38;border:"
-      "1px solid #3b4b59;border-radius:5px;padding:7px;} "
-      "QPushButton{background:#263442;border:1px solid "
-      "#425569;border-radius:5px;padding:8px 14px;} "
-      "QPushButton:hover{background:#36495a;} "
-      "QPushButton:disabled{color:#71808c;background:#18212a;} "
-      "QTabWidget::pane{border:1px solid #334451;border-radius:5px;} "
-      "QTabBar::tab{padding:11px 24px;background:#1b2733;} "
-      "QTabBar::tab:selected{background:#334352;border-bottom:2px solid "
-      "#ed6377;} QScrollArea{border:0;} QCheckBox,QRadioButton{padding:5px;} "
-      "QLabel{background:transparent;}");
+
+  const QStringList pageTitles = {"Button assignments", "Performance",
+                                  "Lighting studio", "Macro editor",
+                                  "Desktop controls"};
+  const QStringList descriptions = {
+      "Make every control work your way.",
+      "Tune sensitivity, stages and response.",
+      "Set the colors that make it yours.",
+      "Build a sequence. Choose a trigger.",
+      "Fine-tune pointer movement and scrolling."};
+  connect(navGroup, &QButtonGroup::idClicked, this,
+          [this](int n) { tabs->setCurrentIndex(n); });
+  connect(tabs, &QTabWidget::currentChanged, this,
+          [this, pageTitles, descriptions](int n) {
+            navigation[n]->setChecked(true);
+            pageTitle->setText(pageTitles[n]);
+            pageSubtitle->setText(descriptions[n]);
+            stopPreview();
+          });
+  navigation[0]->setChecked(true);
+  applyDesign(this);
 }
 void Window::collect() {
   if (rendering)
@@ -606,6 +916,21 @@ void Window::collect() {
                                 {"speed", liveSpeed->value()}}
                   : QJsonObject();
   setProfile(p);
+  for (int n = 0; n < 6; ++n)
+    dpiValues[n]->setText(QString::number(s["dpi"].toArray()[n].toInt()));
+  dpiSummary->setText(
+      QString::number(s["dpi"].toArray()[s["stage"].toInt()].toInt()));
+  rateSummary->setText(QString::number(s["polling"].toInt()) + " Hz");
+  lightSummary->setStyleSheet("font-size:16px;color:#dbe3ec");
+  lightSummary->setText(p["live"].toObject().isEmpty()
+                            ? s["lighting"].toObject()["effect"].toString()
+                            : p["live"].toObject()["effect"].toString());
+  dpiSlider->blockSignals(true);
+  dpiEditor->blockSignals(true);
+  dpiSlider->setValue(dpi[dpiEditing]->currentIndex());
+  dpiEditor->setValue(dpi[dpiEditing]->currentData().toInt());
+  dpiSlider->blockSignals(false);
+  dpiEditor->blockSignals(false);
   viewer->setLighting(s, p["live"].toObject());
   lightingViewer->setLighting(s, p["live"].toObject());
   dirty();
@@ -621,6 +946,17 @@ void Window::render() {
     dpiEnabled[n]->setChecked(s["enabled"].toArray()[n].toBool());
     stage[n]->setChecked(s["stage"].toInt() == n);
   }
+  for (int n = 0; n < 6; ++n)
+    dpiValues[n]->setText(QString::number(s["dpi"].toArray()[n].toInt()));
+  dpiSlider->setValue(dpi[dpiEditing]->currentIndex());
+  dpiEditor->setValue(dpi[dpiEditing]->currentData().toInt());
+  dpiSummary->setText(
+      QString::number(s["dpi"].toArray()[s["stage"].toInt()].toInt()));
+  rateSummary->setText(QString::number(s["polling"].toInt()) + " Hz");
+  lightSummary->setStyleSheet("font-size:16px;color:#dbe3ec");
+  lightSummary->setText(p["live"].toObject().isEmpty()
+                            ? l["effect"].toString()
+                            : p["live"].toObject()["effect"].toString());
   polling->setCurrentIndex(polling->findData(s["polling"].toInt()));
   timing->setValue(s["double_click_ms"].toInt());
   brightness->setValue(s["brightness_raw"].toInt());
@@ -687,9 +1023,12 @@ void Window::dirty() {
   refreshButton->setEnabled(!busy);
   profileCombo->setEnabled(!busy);
   for (auto *b : findChildren<QPushButton *>())
-    if (b->text() == "Import presets" || b->text() == "Export presets")
+    if (b->text() == "Import" || b->text() == "Export")
       b->setEnabled(!busy);
   tabs->setEnabled(!busy);
+  for (auto *nav : navigation)
+    nav->setEnabled(!busy);
+  presetState->setText(changed ? "Unsaved changes" : "Saved locally");
   macroApplyButton->setEnabled(!busy &&
                                !profile()["macro"].toArray().isEmpty());
   macroStopButton->setEnabled(!busy && !integration.activeGroup.isEmpty());
@@ -730,9 +1069,8 @@ void Window::loadMouse() {
             revisionToken = r["revision"].toString();
             baseline["settings"] = fresh;
             restoreButton->setProperty("canRestore", r["can_restore"].toBool());
-            connection->setText(device.mock
-                                    ? "Demo · no device writes"
-                                    : "GM320 / Instant mouse connected");
+            connection->setText(device.mock ? "●  Demo device"
+                                            : "●  Connected");
             render();
             message("Mouse settings read. Changes require Apply.");
             QTimer::singleShot(0, this, &Window::refreshDesktop);
@@ -929,6 +1267,16 @@ bool Window::verifyGui(const QString &directory) {
     writeImage(1, "sensitivity");
     writeImage(2, "lighting");
     writeImage(3, "macros");
+    writeImage(4, "desktop");
+    tabs->setCurrentIndex(2);
+    auto *lightingScroll = qobject_cast<QScrollArea *>(tabs->widget(2));
+    lightingScroll->verticalScrollBar()->setValue(
+        lightingScroll->verticalScrollBar()->maximum());
+    writeImage(2, "lighting-palette");
+    lightingScroll->verticalScrollBar()->setValue(0);
+    viewer->setSelected(7);
+    writeImage(0, "fire-button");
+    viewer->setSelected(0);
     auto p = profile();
     p["macro"] = QJsonArray{QJsonObject{{"type", "down"}, {"key", "Ctrl"}},
                             QJsonObject{{"type", "down"}, {"key", "C"}},
@@ -946,6 +1294,10 @@ bool Window::verifyGui(const QString &directory) {
     viewer->setThreeD(true);
     writeImage(0, "viewer-3d");
     writeImage(3, "macro-saved");
+    resize(1050, 730);
+    viewer->setThreeD(false);
+    writeImage(0, "compact-assignments");
+    resize(1260, 840);
     QFile f(directory + "/result.json");
     require(f.open(QIODevice::WriteOnly), "Cannot save GUI result");
     f.write(QJsonDocument(QJsonObject{{"ready", ready()},

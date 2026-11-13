@@ -127,6 +127,9 @@ QColor Viewer::previewColor() const {
                           color.blueF() * value);
 }
 int Viewer::buttonAt(QPointF point) const {
+  for (int n = 0; n < centers.size(); ++n)
+    if (QLineF(point, centers[n]).length() <= 11)
+      return n;
   if (threeD) {
     for (auto it = pickFaces.crbegin(); it != pickFaces.crend(); ++it)
       if (it->first.containsPoint(point, Qt::OddEvenFill))
@@ -163,146 +166,225 @@ void Viewer::keyPressEvent(QKeyEvent *e) {
 void Viewer::paintEvent(QPaintEvent *) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
-  p.fillRect(rect(), QColor("#151b22"));
-  hitRegions.fill({}, 7);
-  centers.fill({}, 7);
+  p.fillRect(rect(), QColor("#15191f"));
+  hitRegions.fill({}, 8);
+  centers.fill({}, 8);
   pickFaces.clear();
   QColor glow = previewColor();
+  auto badge = [&](int n, QPointF center) {
+    QPainterPath path;
+    path.addEllipse(center, 11, 11);
+    hitRegions[n].addPath(path);
+    centers[n] = center;
+    p.setPen(QPen(n == chosen ? QColor("#b5f0d4") : QColor("#566475"), 1.2));
+    p.setBrush(n == chosen ? QColor("#284e3c") : QColor("#202a35"));
+    p.drawPath(path);
+    p.setPen(n == chosen ? QColor("#d7fae9") : QColor("#b6c2d2"));
+    QFont font = p.font();
+    font.setPointSizeF(8.5);
+    font.setWeight(QFont::Medium);
+    p.setFont(font);
+    p.drawText(QRectF(center - QPointF(11, 11), QSizeF(22, 22)),
+               Qt::AlignCenter, QString::number(n + 1));
+  };
+  // Original schematic geometry. It represents physical placement, not a vendor
+  // asset.
   if (!threeD) {
-    p.translate(width() / 2., height() / 2. - 8);
-    double scale = qMin(width() / 240., height() / 330.);
+    double scale = qMin(width() / 330., height() / 375.);
+    p.translate(width() / 2., height() / 2. - 5);
     p.scale(scale, scale);
     QPainterPath body;
-    body.moveTo(0, -115);
-    body.cubicTo(65, -115, 82, -65, 80, 28);
-    body.cubicTo(78, 115, 49, 133, 0, 133);
-    body.cubicTo(-49, 133, -78, 115, -80, 28);
-    body.cubicTo(-82, -65, -65, -115, 0, -115);
-    QLinearGradient g(-80, 0, 80, 0);
-    g.setColorAt(0, QColor("#252e38"));
-    g.setColorAt(.5, QColor("#3a4654"));
-    g.setColorAt(1, QColor("#202832"));
-    p.setBrush(g);
-    p.setPen(QPen(glow, 3));
+    body.moveTo(-45, -132);
+    body.lineTo(45, -132);
+    body.quadTo(72, -126, 78, -100);
+    body.lineTo(90, -26);
+    body.lineTo(95, 66);
+    body.quadTo(91, 119, 54, 137);
+    body.quadTo(0, 150, -54, 137);
+    body.quadTo(-91, 119, -95, 66);
+    body.lineTo(-90, -26);
+    body.lineTo(-78, -100);
+    body.quadTo(-72, -126, -45, -132);
+    body.closeSubpath();
+    QPainterPath shadow = body.translated(0, 9);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(0, 0, 0, 85));
+    p.drawPath(shadow);
+    QLinearGradient shell(-95, -70, 85, 110);
+    shell.setColorAt(0, QColor("#4a5664"));
+    shell.setColorAt(.36, QColor("#333e4c"));
+    shell.setColorAt(1, QColor("#202832"));
+    p.setBrush(shell);
+    p.setPen(QPen(QColor("#5a6879"), 1.4));
     p.drawPath(body);
-    p.setPen(QPen(QColor("#10151b"), 3));
-    p.drawLine(0, -110, 0, -22);
-    p.drawLine(-69, -23, 69, -23);
-    p.setBrush(QColor("#111820"));
-    p.drawRoundedRect(QRectF(-9, -92, 18, 43), 7, 7);
-    p.setBrush(chosen == 5 ? light : QColor("#202b35"));
-    p.drawRoundedRect(QRectF(-11, -10, 22, 19), 4, 4);
-    p.setBrush(chosen == 6 ? light : QColor("#202b35"));
-    p.drawRoundedRect(QRectF(-11, 17, 22, 19), 4, 4);
-    p.setBrush(QColor("#202b35"));
-    p.drawRoundedRect(QRectF(-91, -28, 20, 28), 4, 4);
-    p.drawRoundedRect(QRectF(-91, 9, 20, 28), 4, 4);
-    QVector<QRectF> regions = {{-65, -98, 45, 62}, {20, -98, 45, 62},
-                               {-13, -95, 26, 48}, {-91, -28, 20, 28},
-                               {-91, 9, 20, 28},   {-15, -14, 30, 25},
-                               {-15, 13, 30, 27}};
-    for (int n = 0; n < 7; ++n) {
-      QPolygonF polygon(regions[n]);
+    p.setBrush(Qt::NoBrush);
+    p.setPen(QPen(QColor(glow.red(), glow.green(), glow.blue(), 105), 5));
+    p.drawPath(body);
+    p.setPen(QPen(glow, 1.2));
+    p.drawPath(body);
+    p.setPen(QPen(QColor("#11171f"), 3));
+    p.drawLine(-72, -27, 72, -27);
+    p.drawLine(0, -126, 0, -27);
+    p.setBrush(QColor("#0c1117"));
+    p.setPen(QPen(QColor("#657183"), 1));
+    p.drawRoundedRect(QRectF(-10, -112, 20, 47), 8, 8);
+    p.setPen(QPen(QColor("#435262"), 2));
+    for (int n = 0; n < 7; ++n)
+      p.drawLine(-6, -106 + n * 5, 6, -106 + n * 5);
+    p.setPen(QPen(QColor("#617185"), 1));
+    p.setBrush(QColor("#222d38"));
+    p.drawRoundedRect(QRectF(-10, -12, 20, 20), 3, 3);
+    p.drawRoundedRect(QRectF(-10, 20, 20, 20), 3, 3);
+    p.drawRoundedRect(QRectF(-100, -27, 14, 29), 4, 4);
+    p.drawRoundedRect(QRectF(-100, 10, 14, 29), 4, 4);
+    QPainterPath fire;
+    fire.moveTo(-77, -106);
+    fire.lineTo(-56, -102);
+    fire.lineTo(-56, -67);
+    fire.lineTo(-83, -72);
+    fire.closeSubpath();
+    p.setBrush(QColor("#c35660"));
+    p.setPen(QPen(QColor("#dd9096"), 1));
+    p.drawPath(fire);
+    // Recessed LED side accents and our own center mark.
+    p.setPen(QPen(glow, 2));
+    p.drawLine(-72, 65, -64, 96);
+    p.drawLine(72, 65, 64, 96);
+    p.setPen(QPen(QColor("#7e8c9d"), 2));
+    p.drawLine(-9, 86, -9, 98);
+    p.drawArc(QRectF(-9, 90, 18, 20), 180 * 16, 180 * 16);
+    p.drawLine(9, 86, 9, 98);
+    QVector<QPointF> physical = {{-35, -69}, {35, -69}, {0, -91}, {-93, -12},
+                                 {-93, 24},  {0, -2},   {0, 30},  {-68, -85}};
+    QVector<QRectF> regions = {{-51, -114, 30, 72}, {18, -114, 47, 72},
+                               {-12, -115, 24, 52}, {-101, -28, 17, 33},
+                               {-101, 9, 17, 32},   {-12, -13, 24, 23},
+                               {-12, 18, 24, 25},   {-82, -108, 25, 43}};
+    for (int n = 0; n < 8; ++n) {
       QPainterPath path;
-      path.addPolygon(polygon);
+      path.addRect(regions[n]);
       hitRegions[n] = p.transform().map(path);
-      centers[n] = p.transform().map(regions[n].center());
-      p.setPen(chosen == n ? QColor("#fff0f0") : QColor("#d2dce6"));
-      p.drawText(regions[n], Qt::AlignCenter, QString::number(n + 1));
     }
+    p.resetTransform();
+    for (int n = 0; n < 8; ++n)
+      badge(n, QPointF(width() / 2. + physical[n].x() * scale,
+                       height() / 2. - 5 + physical[n].y() * scale));
   } else {
     struct Face {
-      QPolygonF poly;
-      float z;
+      QPolygonF polygon;
+      float depth;
       QColor color;
-      int id;
+      int button;
     };
-    QVector<Face> faces;
+    QVector<Face> mesh;
     QMatrix4x4 rotation;
-    rotation.rotate(pitch, 1, 0, 0);
+    rotation.rotate(pitch + 15, 1, 0, 0);
     rotation.rotate(yaw, 0, 1, 0);
-    double scale = qMin(width() / 2.8, height() / 3.0) * zoom;
-    auto project = [&](QVector3D v) {
-      v = rotation.map(v);
-      float perspective = 4.5 / (4.5 + v.z());
-      return QPointF(width() / 2. + v.x() * scale * perspective,
-                     height() / 2. - v.y() * scale * perspective);
+    double scale = qMin(width() / 3.1, height() / 3.3) * zoom;
+    auto project = [&](QVector3D point) {
+      point = rotation.map(point);
+      double perspective = 5. / (5. + point.z());
+      return QPointF(width() / 2. + point.x() * scale * perspective,
+                     height() / 2. - point.y() * scale * perspective + 24);
     };
-    auto widthAt = [](double z) {
-      return .65 * std::pow(qMax(0., 1 - z * z / 1.21), .35);
-    };
-    auto surface = [&](double z, double u) {
-      double h = .12 + .5 * std::pow(qMax(0., 1 - z * z / 1.4), .7) *
-                           std::pow(qMax(0., 1 - u * u), .62);
-      return QVector3D(widthAt(z) * u, h, z);
-    };
-    for (int i = 0; i < 32; ++i)
-      for (int j = 0; j < 24; ++j) {
-        double z = -1.09 + 2.18 * i / 32, u = -1. + 2. * j / 24;
-        QVector<QVector3D> vertices = {surface(z, u), surface(z + 2.18 / 32, u),
-                                       surface(z + 2.18 / 32, u + 2. / 24),
-                                       surface(z, u + 2. / 24)};
-        float depth = 0;
-        QPolygonF polygon;
-        for (auto v : vertices) {
-          depth += rotation.map(v).z();
-          polygon << project(v);
-        }
-        QVector3D norm = QVector3D::normal(vertices[1] - vertices[0],
-                                           vertices[2] - vertices[0]);
-        float shading = .48 + .45 * qAbs(QVector3D::dotProduct(
-                                        rotation.mapVector(norm),
-                                        QVector3D(.3, .8, 1).normalized()));
-        int id = z < -.25                   ? (u < -.15  ? 0
-                                               : u > .15 ? 1
-                                                         : 2)
-                 : qAbs(u) < .18 && z < .35 ? (z < .05 ? 5 : 6)
-                                            : -1;
-        QColor color =
-            id == chosen
-                ? light
-                : QColor::fromRgbF(.17 * shading, .22 * shading, .28 * shading);
-        faces << Face{polygon, depth / 4, color, id};
-      }
-    // Model the two side buttons as independent raised plates.
-    for (int n = 0; n < 2; ++n) {
-      double z = -.08 + n * .38;
-      QVector<QVector3D> points = {{-.68f, .12f, float(z - .13)},
-                                   {-.68f, .31f, float(z - .13)},
-                                   {-.68f, .31f, float(z + .13)},
-                                   {-.68f, .12f, float(z + .13)}};
+    auto face = [&](QVector<QVector3D> points, QColor color, int id = -1) {
       QPolygonF poly;
       float depth = 0;
       for (auto point : points) {
         poly << project(point);
         depth += rotation.map(point).z();
       }
-      faces << Face{poly, depth / 4,
-                    chosen == n + 3 ? light : QColor("#526170"), n + 3};
-    }
-    std::sort(faces.begin(), faces.end(),
-              [](auto &a, auto &b) { return a.z > b.z; });
-    p.setPen(Qt::NoPen);
-    for (auto f : faces) {
-      p.setBrush(f.color);
-      p.drawPolygon(f.poly);
-      pickFaces.append({f.poly, f.id});
-      if (f.id >= 0) {
-        hitRegions[f.id].addPolygon(f.poly);
-        centers[f.id] = hitRegions[f.id].boundingRect().center();
+      mesh.append({poly, depth / points.size(), color, id});
+    };
+    const QVector<float> z = {-1.25f, -1.1f, -.6f, 0.f, .65f, 1.15f, 1.28f};
+    const QVector<float> width = {.40f, .61f, .74f, .81f, .82f, .57f, .30f};
+    const QVector<float> height = {.18f, .27f, .43f, .57f, .57f, .32f, .19f};
+    auto point = [&](int ring, int step) {
+      float theta = 3.14159265f * step / 16;
+      return QVector3D(-width[ring] * std::cos(theta),
+                       .1f + height[ring] * std::sin(theta), z[ring]);
+    };
+    for (int i = 0; i < z.size() - 1; ++i)
+      for (int j = 0; j < 16; ++j) {
+        QVector<QVector3D> points = {point(i, j), point(i + 1, j),
+                                     point(i + 1, j + 1), point(i, j + 1)};
+        auto normal =
+            QVector3D::normal(points[1] - points[0], points[2] - points[0]);
+        float shade = .58f + .30f * qAbs(QVector3D::dotProduct(
+                                        rotation.mapVector(normal),
+                                        QVector3D(-.3, 1, .5).normalized()));
+        int id = i < 2 ? (j < 7 ? 0 : j > 9 ? 1 : 2) : -1;
+        QColor base = QColor::fromRgbF(.22 * shade, .28 * shade, .35 * shade);
+        if (id == chosen)
+          base = QColor::fromRgbF(.27 * shade, .40 * shade, .39 * shade);
+        face(points, base, id);
       }
+    // Closed end caps avoid holes at the nose and palm end.
+    for (int ring : {0, int(z.size() - 1)}) {
+      QVector<QVector3D> cap;
+      for (int j = 0; j <= 16; ++j)
+        cap << point(ring, j);
+      cap << QVector3D(width[ring], -.1f, z[ring])
+          << QVector3D(-width[ring], -.1f, z[ring]);
+      face(cap, QColor("#303b47"));
     }
-    p.setPen(QPen(glow, 2));
-    p.drawLine(project({0, .2f, -1.1f}), project({0, .1f, -1.5f}));
-    p.setPen(QColor("#c8d6e5"));
-    p.drawText(QRect(8, 8, width() - 16, 30), Qt::AlignCenter,
-               "Drag to rotate · scroll to zoom");
+    for (int i = 0; i < z.size() - 1; ++i)
+      for (int side : {-1, 1})
+        face({{side * width[i], .1f, z[i]},
+              {side * width[i + 1], .1f, z[i + 1]},
+              {side * width[i + 1], -.10f, z[i + 1]},
+              {side * width[i], -.10f, z[i]}},
+             QColor("#28313d"));
+    auto plate = [&](float x, float y, float z, float w, float length,
+                     QColor color, int id) {
+      face({{x - w, y, z - length},
+            {x + w, y, z - length},
+            {x + w, y, z + length},
+            {x - w, y, z + length}},
+           color, id);
+    };
+    plate(0, .43f, -.82f, .08f, .22f, QColor("#0d1219"), 2);
+    plate(0, .61f, -.17f, .10f, .09f, QColor("#637482"), 5);
+    plate(0, .69f, .18f, .10f, .09f, QColor("#637482"), 6);
+    plate(-.49f, .35f, -.92f, .10f, .21f, QColor("#c35660"), 7);
+    for (int n = 0; n < 2; ++n) {
+      float position = -.28f + n * .37f;
+      face({{-.83f, .13f, position - .14f},
+            {-.83f, .29f, position - .14f},
+            {-.83f, .29f, position + .14f},
+            {-.83f, .13f, position + .14f}},
+           QColor("#566577"), n + 3);
+    }
+    std::sort(mesh.begin(), mesh.end(),
+              [](const Face &a, const Face &b) { return a.depth > b.depth; });
+    p.setPen(Qt::NoPen);
+    for (const auto &f : mesh) {
+      p.setBrush(f.color);
+      p.drawPolygon(f.polygon);
+      pickFaces.append({f.polygon, f.button});
+      if (f.button >= 0)
+        hitRegions[f.button].addPolygon(f.polygon);
+    }
+    p.setPen(QPen(glow, 1.4));
+    for (int side : {-1, 1})
+      for (int i = 0; i < z.size() - 1; ++i)
+        p.drawLine(project({side * width[i], .08f, z[i]}),
+                   project({side * width[i + 1], .08f, z[i + 1]}));
+    QVector<QVector3D> controls = {{-.29f, .38f, -.76f}, {.29f, .38f, -.76f},
+                                   {0, .44f, -.82f},     {-.83f, .23f, -.28f},
+                                   {-.83f, .23f, .09f},  {0, .62f, -.17f},
+                                   {0, .7f, .18f},       {-.49f, .36f, -.92f}};
+    for (int n = 0; n < controls.size(); ++n)
+      badge(n, project(controls[n]));
   }
   p.resetTransform();
-  p.setPen(QColor("#90a1b4"));
-  p.drawText(QRect(8, height() - 38, width() - 16, 32), Qt::AlignCenter,
-             threeD ? "Generic native 3D model"
-                    : "Generic mouse · select a numbered button");
+  p.setPen(QColor("#697789"));
+  QFont font = p.font();
+  font.setPointSizeF(8);
+  p.setFont(font);
+  p.drawText(QRect(8, height() - 26, width() - 16, 20), Qt::AlignCenter,
+             threeD ? "Drag to orbit · Scroll to zoom"
+                    : "8 controls · Fire button shown in red");
 }
 void Viewer::mousePressEvent(QMouseEvent *e) {
   last = e->position();

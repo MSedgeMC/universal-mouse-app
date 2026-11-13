@@ -38,7 +38,7 @@ private:
   bool threeD = false, dragging = false, moved = false;
   double yaw = -25, pitch = 25, zoom = 1;
   int chosen = 0;
-  QColor light = QColor("#de5364");
+  QColor light = QColor("#a9e9cc");
   QPointF last;
   QVector<QPainterPath> hitRegions;
   QVector<QPair<QPolygonF, int>> pickFaces;

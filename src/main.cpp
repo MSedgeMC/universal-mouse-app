@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFile>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QLockFile>
 #include <QTextStream>
@@ -22,7 +23,7 @@ int main(int argc, char **argv) {
     static_cast<QApplication *>(app.get())->setFont(
         QFont("Ubuntu", 10, QFont::Medium));
   QCoreApplication::setApplicationName("Universal Mouse App");
-  QCoreApplication::setApplicationVersion("0.1.0");
+  QCoreApplication::setApplicationVersion("0.2.0");
   QCommandLineParser p;
   p.addHelpOption();
   p.addVersionOption();
@@ -99,6 +100,7 @@ int main(int argc, char **argv) {
     QLockFile lock(mouse::configDir() + "/application.lock");
     lock.setStaleLockTime(30000);
     mouse::require(lock.tryLock(), "Universal Mouse App is already running");
+    QApplication::setWindowIcon(QIcon(":/design/universal-mouse-app.svg"));
     mouse::Window window(mock);
     window.show();
     if (p.isSet("verify-gui")) {
