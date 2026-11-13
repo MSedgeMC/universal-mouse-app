@@ -1,0 +1,38 @@
+# Native builds and dependencies
+/build*/
+/out/
+/.cache/
+/.ccache/
+/artifacts/
+/test-results/
+/screenshots/
+compile_commands.json
+
+# Historical Electron/Go build products
+node_modules/
+.pnpm-store/
+bin/
+.generated/
+__pycache__/
+*.pyc
+
+# Private inputs and machine configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+/private/
+/captures/
+/vendor-installers/
+device-backup.json
+gm320-settings-read.json
+gm320-discovery.json
+*.pcap
+*.pcapng
+*.log
+
+# Desktop/editor files
+.DS_Store
+.idea/
+.vscode/

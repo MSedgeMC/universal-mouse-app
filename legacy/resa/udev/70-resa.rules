@@ -1,0 +1,9 @@
+# Match the USB product first; udev parent matches within one rule must refer
+# to the same ancestor. Match the configuration interface in a separate rule.
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="30fa", ATTRS{idProduct}=="1440", ENV{.RESA_MOUSE}="1"
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ENV{.RESA_MOUSE}=="1", ATTRS{bInterfaceNumber}=="01", TAG+="uaccess"
+
+# Input Remapper's normal-user CLI needs to discover this mouse's event
+# collections. Give only the active local session access to this USB device;
+# do not add the user to the input group or expose other keyboards/mice.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="30fa", ATTRS{idProduct}=="1440", TAG+="uaccess"

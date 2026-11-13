@@ -1,0 +1,305 @@
+{
+  "source": "local GM320 adaptation of Resa",
+  "upstream": {
+    "project": "Resa",
+    "repository": "https://github.com/RajanDhamala/fantech-thor-ii-x16v2-linux",
+    "revision": "fc12318e20c694cb1bf9965e2db0bce9514be94d",
+    "subdirectory": "resa",
+    "local_adaptation": "Ant Esports GM320 30fa:1440",
+    "license": "MIT"
+  },
+  "files": [
+    {
+      "path": "legacy/resa/LICENSE",
+      "sha256": "d3a33bbe9879eec567eca5777855a68df93fca47e6c05d3a8af0bcb5fcaccf67"
+    },
+    {
+      "path": "legacy/resa/PROTOCOL.md",
+      "sha256": "fef175508560b5f14c7c035a75bf56a817c6dfba48bc6bcffeba502ec4441a9a"
+    },
+    {
+      "path": "legacy/resa/README.md",
+      "sha256": "69bfb5c16ab14f92d0c9a53ee1db23fd9b72945b92ae947c36d46734650dbb4a"
+    },
+    {
+      "path": "legacy/resa/UPSTREAM-README.md",
+      "sha256": "2c0552abd22e82617b4263f0bb3a84e73547c8fa70b7cba7abf32c76e31de5e8"
+    },
+    {
+      "path": "legacy/resa/UPSTREAM.json",
+      "sha256": "7f913611537a0248e9a4edae2ff5ac00326d489de6d42918fd13989a230e7c79"
+    },
+    {
+      "path": "legacy/resa/assets/gm320.svg",
+      "sha256": "3a941a9e4ffe730e4feae57c9eb0086401420d173a5932d9d701b1c5dd5c7597"
+    },
+    {
+      "path": "legacy/resa/cmd/resa/main.go",
+      "sha256": "aa028f8c9b9956deefb5f17bc863d75d48294ecb583f117c3cca2bb650d23611"
+    },
+    {
+      "path": "legacy/resa/desktop/captured-lighting.js",
+      "sha256": "c1adeb9f7627ad2bbdd5cf41159fe0f06a75c6332b474e0f28a56a7a09e8d864"
+    },
+    {
+      "path": "legacy/resa/desktop/captured-lighting.test.js",
+      "sha256": "95c150b5d89d39b03c07167ebbe4aa69e3fbc745b397bc061af75d1b28fade0b"
+    },
+    {
+      "path": "legacy/resa/desktop/device-contract.js",
+      "sha256": "51395396a5ccb50056cfa4d70d730aba6ba39f765505639dddf1187d6d971bf3"
+    },
+    {
+      "path": "legacy/resa/desktop/device-contract.test.js",
+      "sha256": "490673789521c202c8b3969f268ed4816ecfdce4ca24a812a24c27b7a29d5549"
+    },
+    {
+      "path": "legacy/resa/desktop/device-controls.js",
+      "sha256": "901e782f66e559a58f6815a9f648869fbe569716299aa0597cefa9e063922c0c"
+    },
+    {
+      "path": "legacy/resa/desktop/device-controls.test.js",
+      "sha256": "d4bae737108a5bf36a482b8268810c7a636bd919dbc9a0e33bd288eb556bdafa"
+    },
+    {
+      "path": "legacy/resa/desktop/dropdown.js",
+      "sha256": "c6eec16e415d707e08df45295fb7b6ffa6b1162d9a02d6f22bb33b940ce0659c"
+    },
+    {
+      "path": "legacy/resa/desktop/index.html",
+      "sha256": "37b948903c0372dff6db19410b8a334a7908bd83fbb002922c725e3d21e7073a"
+    },
+    {
+      "path": "legacy/resa/desktop/kde-settings.js",
+      "sha256": "2c40a0fdbfc8c760e8245cccde72dcae81a55286d610af0ebadaddad3e379af2"
+    },
+    {
+      "path": "legacy/resa/desktop/kde-settings.test.js",
+      "sha256": "e4e97fb13f7fe4df55ce12db911f2e3576be6f072b2d05e8f29d991ae5421ca5"
+    },
+    {
+      "path": "legacy/resa/desktop/lighting-contract.js",
+      "sha256": "3dd402dbde989fd9b8cefdc39fb9aca435484c2be67adb7eb637129574055a26"
+    },
+    {
+      "path": "legacy/resa/desktop/lighting-contract.test.js",
+      "sha256": "2ac3cdbdcb5610e42fe9da867dbc4c8c70c3a9cb23ee5cbf20d991d209321afe"
+    },
+    {
+      "path": "legacy/resa/desktop/linux-macros.js",
+      "sha256": "1dc7360a3e8c4b269fe3dfe3e65d30f118af2927c44f3172f871811dfc3243bf"
+    },
+    {
+      "path": "legacy/resa/desktop/linux-macros.test.js",
+      "sha256": "539c0fcdb4c7837edcec297f3c3462621ae79160e1b05245077db76d0c523c3a"
+    },
+    {
+      "path": "legacy/resa/desktop/live-lighting.js",
+      "sha256": "e45a625d274dc7b23f9f186555954a91fe309346a60cbf8db21bc4fd365299f1"
+    },
+    {
+      "path": "legacy/resa/desktop/live-lighting.test.js",
+      "sha256": "45a065dd9175dce5bfd66ba0e02bef77f52325975d1be66a5a237ca4d7da6d39"
+    },
+    {
+      "path": "legacy/resa/desktop/macro-contract.js",
+      "sha256": "f7a20d32aab9d6579c5e22a519f6dea06730d6ada97bc8d0c9ae993f3b194cdb"
+    },
+    {
+      "path": "legacy/resa/desktop/macro-contract.test.js",
+      "sha256": "4bad6b1c118f29ea07434e205f4540efb8bd545d4562354c963f4177b53dadcb"
+    },
+    {
+      "path": "legacy/resa/desktop/main.js",
+      "sha256": "6e7fc9d3cd70262291e037b012350ca8bcc55a040afae04d617d926c73df7bf4"
+    },
+    {
+      "path": "legacy/resa/desktop/model.js",
+      "sha256": "e71f6192885eed24ba13696b3aa720da40ad1680df907f5895d06119c12c2e41"
+    },
+    {
+      "path": "legacy/resa/desktop/model.test.js",
+      "sha256": "7d0a3e5c5e13785296009759e04b8ec994259608b0fec8595390bcf1a536dd07"
+    },
+    {
+      "path": "legacy/resa/desktop/mouse-assets.js",
+      "sha256": "4dfcc775407e2bbcdc85235957fa788d6754104076b4f9d0f33ed8d1e35a74dc"
+    },
+    {
+      "path": "legacy/resa/desktop/mouse-geometry.js",
+      "sha256": "ada42ad352ac2e95245df4c16bc5e413ad59b0e0f0160cab98ca58024f561557"
+    },
+    {
+      "path": "legacy/resa/desktop/mouse-geometry.test.js",
+      "sha256": "b275fbff69253cbf1770f6df9077a2b8fb7b0d8f9141ac5c6ee52ab4cf58b9db"
+    },
+    {
+      "path": "legacy/resa/desktop/mouse-input.js",
+      "sha256": "624934c9ed978fc4f0382cd009bbd5aae32eb2ce010595cc98e03928fef058fa"
+    },
+    {
+      "path": "legacy/resa/desktop/mouse-input.test.js",
+      "sha256": "9f1bbd4c2888f43e4d6237e02238da5a36815593aa2206bd2c6f2bf24377bd84"
+    },
+    {
+      "path": "legacy/resa/desktop/mouse-viewer.js",
+      "sha256": "d46d00ea0a44f94c9eeaaa5b9d5fe9ba59b28017e150c72af574f87c114b41d9"
+    },
+    {
+      "path": "legacy/resa/desktop/preload.js",
+      "sha256": "b6a94edd9e3bb78018d8f2ec2afb079feea826461595d56336e042715ca1d448"
+    },
+    {
+      "path": "legacy/resa/desktop/renderer.js",
+      "sha256": "e1e559aeb50d97b099846226a57fdd009089185ec546eabaf0fc79dffce51e41"
+    },
+    {
+      "path": "legacy/resa/desktop/session-controls.js",
+      "sha256": "7ab79ca6da5c5e97adcc722d5817d34444412b2f64a4d43831ee16a3dc44fdb6"
+    },
+    {
+      "path": "legacy/resa/desktop/session-settings.js",
+      "sha256": "9bb61d8925c6aa8d70335ff431cbc394a89b4af967d0e7f98a01140dbb2f666e"
+    },
+    {
+      "path": "legacy/resa/desktop/session-settings.test.js",
+      "sha256": "dfac9f742dbf76755b5ef7fedf66bcb01fd70b514cd36483ddb816700368118f"
+    },
+    {
+      "path": "legacy/resa/desktop/styles.css",
+      "sha256": "18ca49dbcc938d27f89a0c360a07a258a2118fd7912a656ec7208b2685c0f1da"
+    },
+    {
+      "path": "legacy/resa/evidence/advanced-controls-support.json",
+      "sha256": "10055946d01a4434af27dba65fc5cd45915da597b77fc1afead3535b284ef7d4"
+    },
+    {
+      "path": "legacy/resa/evidence/button-support.json",
+      "sha256": "d9514590dbbd23a9fe4b1919f773e22f503d7ac205ee90647e2980adcee218ab"
+    },
+    {
+      "path": "legacy/resa/evidence/capture-support.json",
+      "sha256": "e40d9f8dd139b4e8f433c86ac11ec9f118e9dd687b7e4158648477a99162aeb2"
+    },
+    {
+      "path": "legacy/resa/evidence/captured-lighting-support.json",
+      "sha256": "b410fd724ecb6a79cdda36e21bf5d07c2f24d9136724c4408d770d8108dc310e"
+    },
+    {
+      "path": "legacy/resa/evidence/linux-discovery.json",
+      "sha256": "e6170de8d24cd9a3de63875bd1be72055a4c8350a909604a335da0f7cff954bc"
+    },
+    {
+      "path": "legacy/resa/evidence/mono-water-support.json",
+      "sha256": "d94640a7541499cd11fefa86ce85aeea47c243ecfccad5c1d40c7538cc531dfd"
+    },
+    {
+      "path": "legacy/resa/go.mod",
+      "sha256": "e8e1548f736de1dd7270e3217b09ff1019cc09e9f9573397519736285502e160"
+    },
+    {
+      "path": "legacy/resa/internal/device/advanced_test.py",
+      "sha256": "bc07d4efb6f89ab3208fca26a022fbfeebd3e3681053d7307f282ba89c83a724"
+    },
+    {
+      "path": "legacy/resa/internal/device/captured_lighting_test.py",
+      "sha256": "93ec1462e6f8d20c305649efaa071469dcbafb8d6e25e81529ec1a15115ae1b5"
+    },
+    {
+      "path": "legacy/resa/internal/device/device.go",
+      "sha256": "201cc8bbc4b3c7dc3c7a6e866315fc8c156b4540f73c6ed426456cf1258e9132"
+    },
+    {
+      "path": "legacy/resa/internal/device/gm320_test.py",
+      "sha256": "dafed9e9b0228cd30e5024dcd8fe51d9ad2619997e6afada8088b7babfb88684"
+    },
+    {
+      "path": "legacy/resa/internal/device/worker.py",
+      "sha256": "b41250e88ebee18d0701fc8fcd57f3922c0bb632837969889989edbe342f2256"
+    },
+    {
+      "path": "legacy/resa/internal/device/worker_test.py",
+      "sha256": "3fb6b489558f61f72b1493ede85cc95d37f393cf57a81926868a7c27fe5d1e56"
+    },
+    {
+      "path": "legacy/resa/internal/discovery/descriptor.go",
+      "sha256": "3006f7b03283579ac229ee6805289325338fc1608bd19a94d0e0a217dabec627"
+    },
+    {
+      "path": "legacy/resa/internal/discovery/discovery.go",
+      "sha256": "98ce40aa4c41d9e9840a43d7273eabe2b3660d4bf8ef01faa9fd62b6ae123da6"
+    },
+    {
+      "path": "legacy/resa/internal/discovery/discovery_test.go",
+      "sha256": "038d764f1fbe003e56b3aef0eea7a80e50412697648d2105015102e81f4ec37d"
+    },
+    {
+      "path": "legacy/resa/internal/hidraw/hidraw.go",
+      "sha256": "db7a05ad840a29b64f6c921c242e948ec2d94bc3e7025cb0d11796d06ec87f5c"
+    },
+    {
+      "path": "legacy/resa/internal/hidraw/hidraw_linux.go",
+      "sha256": "985df4926bf2804660e19a3d0beea371e8e82ed5ddb8f9c7701f77d0511eed18"
+    },
+    {
+      "path": "legacy/resa/internal/hidraw/hidraw_linux_test.go",
+      "sha256": "2e28eb374a227ab512c102cb2b7b40a4965c9c50cbe1fc29ac37c917cd534f0c"
+    },
+    {
+      "path": "legacy/resa/internal/hidraw/hidraw_other.go",
+      "sha256": "4cc6fd5cc581eb8ce059e846301d123b1adbd0c5b731939ec865a067bf983bc7"
+    },
+    {
+      "path": "legacy/resa/internal/lighting/lighting.go",
+      "sha256": "ffa3ce87a1742640cfd46d70e6b65f33754d2a57183c348b6d61a5cd5cefa307"
+    },
+    {
+      "path": "legacy/resa/internal/lighting/lighting_test.go",
+      "sha256": "f6a672333903eb4bed059fad2ed7b89a13113ec6df10de608e00a4e437fea0aa"
+    },
+    {
+      "path": "legacy/resa/package.json",
+      "sha256": "35e24a6a2b82e7d80f6dcb60da95bc74129a6c9ba061a718b284f2108c5eff64"
+    },
+    {
+      "path": "legacy/resa/pnpm-lock.yaml",
+      "sha256": "b2a2fc9df60775961917b7f3ff15df864874ae1b09237398125299c787f5f462"
+    },
+    {
+      "path": "legacy/resa/pnpm-workspace.yaml",
+      "sha256": "2732bda17f00b506d3305b04e793fac6a40492219fc76a3a75e69620e2e6a460"
+    },
+    {
+      "path": "legacy/resa/scripts/build-preload.js",
+      "sha256": "1206e814a171a5388e2f4df6430e575b1f69c5a637bf8cd77ad19b2bd1cdb817"
+    },
+    {
+      "path": "legacy/resa/scripts/export-preview.js",
+      "sha256": "6246bd6fec8394a9a467848caa9764233d6697d94c1099e4912b1f7666c20e3e"
+    },
+    {
+      "path": "legacy/resa/scripts/install-user.py",
+      "sha256": "b6ee74c4e9d807c144a164ce676dbee8ee1323f01f6bae3b3b2142c38bf2724f"
+    },
+    {
+      "path": "legacy/resa/scripts/kwin-settings.py",
+      "sha256": "0fc5959d4d8598171c1358003b7f4178672fe959ba5329d96cc2a82f34bc3df6"
+    },
+    {
+      "path": "legacy/resa/scripts/preview.js",
+      "sha256": "1326e6de85296e99ccb893b215de41696cf8dcddf353c51b80bfef0fbfc0ce1b"
+    },
+    {
+      "path": "legacy/resa/scripts/remapper-state.py",
+      "sha256": "d516eaa80231b13fbd7abc29a756a40a0b9325ed34800c41d023ddd3dd9a0889"
+    },
+    {
+      "path": "legacy/resa/udev/70-resa.rules",
+      "sha256": "6f380b671d0a3bc8ef2cc02daf8afc6cf30fbcd465889236e102841798db56a4"
+    },
+    {
+      "path": "legacy/resa/verification/gui.cjs",
+      "sha256": "4475d06c1180d60238c1269df4861498fe82eb3cc6f3673f758bd48530a40868"
+    }
+  ]
+}

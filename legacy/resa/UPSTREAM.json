@@ -1,0 +1,8 @@
+{
+  "project": "Resa",
+  "repository": "https://github.com/RajanDhamala/fantech-thor-ii-x16v2-linux",
+  "revision": "fc12318e20c694cb1bf9965e2db0bce9514be94d",
+  "subdirectory": "resa",
+  "local_adaptation": "Ant Esports GM320 30fa:1440",
+  "license": "MIT"
+}
