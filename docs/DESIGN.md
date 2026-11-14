@@ -1,11 +1,11 @@
-# Native mouse interface — 0.3.0
+# Native mouse interface — Orbit 0.4.0
 
 The user selected **Razer Synapse's mouse layout with Logitech G HUB's black/gray/blue coloring and polish** after reviewing actual mouse-settings screenshots, then requested the **original GM320 product image**. The native Qt implementation follows that hierarchy with original controls, theme code and icons. Its font remains Ubuntu Medium. The official Ant Esports device image is bundled with its own provenance notice; Razer and Logitech assets and stylesheets are not included. This is independent software with the hardware scope documented in README.
 
 ## Interface
 
 - A compact black brand bar, device/profile context, and horizontal Customize / Performance / Lighting / Macros / Desktop navigation.
-- Customize centers the official GM320 product image on a subtle dotted canvas. Eight mouse and callout targets open a side assignment editor only when selected. Top and optional 3D schematic views share selection and local input testing.
+- Customize centers the official GM320 product image on a subtle dotted canvas. Eight mouse and callout targets open a side assignment editor only when selected. Top and detailed GM320 3D views share selection and local input testing.
 - Performance shows six DPI tiles with enable/active controls, a selected-stage slider/editor, report rate and click timing. Editing a stage is separate from choosing the active stage.
 - Lighting keeps the preview and effect settings together, followed by a separate live-color panel, seven-slot palette and advanced controls.
 - Macros uses numbered key-down, key-up and delay rows, a native event editor and explicit trigger/enable/stop controls. Desktop pointer and scroll settings have their own page.
@@ -22,10 +22,12 @@ Mouse-settings screenshots reviewed on 2026-11-14, retained only as local ignore
 - [SteelSeries Engine, Rival 5](https://tpucdn.com/review/steelseries-rival-5/images/software1.jpg): comparison shown before the user's choice.
 - [Ant Esports GM320 product](https://antesports.com/products/gm320-8-button-mouse-braided-cable-black): physical layout reference. The user confirmed the small fire button beside left click as the eighth control. Marketing button counts do not establish register mappings.
 
-The top view is a transparent crop of the official GM320 product image, retaining the mouse shape and printed branding. Lighting uses a neutral derivative and alpha mask from that same image to illustrate color and motion without claiming firmware parity. The optional interpolated 3D shell is an original schematic rather than measured GM320 geometry. Static and hidden previews stop their animation timers; scaled image captures are cached by size and device scale, and the color layer is cached until its preview color changes. Source, revision and reproducible preparation are recorded in [GM320 image provenance](../assets/GM320-IMAGE.md).
+The top view is a transparent crop of the official GM320 product image, retaining the mouse shape and printed branding. Lighting uses a neutral derivative and alpha mask from that same image to illustrate color and motion without claiming firmware parity. The detailed GM320 mesh is reconstructed from the pinned top image and side/oblique product views, including the asymmetric thumb rest and side fire switch. Camera depth and unseen underside details are inferred; the model is not measured CAD. See [model provenance](../assets/GM320-MODEL.md). Static and hidden previews stop their animation timers; scaled image captures are cached by size and device scale, and the color layer is cached until its preview color changes. Source, revision and reproducible preparation are recorded in [GM320 image provenance](../assets/GM320-IMAGE.md).
 
 ## Hardware and provenance
 
 Eight physical buttons and seven verified assignment registers are represented separately. The fire button remains selectable with remapping unavailable. No eighth address is guessed, and the redesign leaves the existing action, DPI, lighting, revision and backup protocol intact.
 
 Normal settings pages have no attribution banners. The hardware port and retained legacy source preserve the required MIT notice; changing the UI does not remove source provenance. Original MSedgeMC additions are identified in LICENSE. The official GM320 image is excluded from the MIT grant and retains Ant Esports ownership. Qt and the external Input Remapper service retain their own terms.
+
+Orbit uses a compact orbital mark in the original blue palette. The public repository URL and package IDs remain stable for existing users. The 3D camera presets include top, left, right and front views; software depth/ID rendering prevents selecting a switch through the shell.

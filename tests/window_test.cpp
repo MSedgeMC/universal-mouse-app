@@ -4,6 +4,7 @@
 #include <QScrollBar>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <set>
 namespace mouse {
 class WindowTest : public QObject {
   Q_OBJECT
@@ -204,6 +205,66 @@ private slots:
                       v.buttonCenter(3).toPoint());
     QCOMPARE(selected.size(), 1);
     QCOMPARE(selected[0][0].toInt(), 3);
+  }
+  void gm320ModelAndOcclusion() {
+    MouseModel model;
+    QVERIFY(model.valid());
+    QVERIFY(model.vertexCount() > 8000);
+    QVERIFY(model.triangleCount() > 15000);
+    auto top =
+        model.render({720, 640}, 1, 0, 90, 1, -1, QColor("#159bff"), false);
+    QVERIFY(!top.image.isNull());
+    // Traced top controls occupy the front half; the logo sits on the palm.
+    QVERIFY(top.anchors[0].x() < top.anchors[2].x());
+    QVERIFY(top.anchors[2].x() < top.anchors[1].x());
+    QVERIFY(top.anchors[2].y() < top.anchors[5].y());
+    QVERIFY(top.anchors[5].y() < top.anchors[6].y());
+    for (int n : {0, 1, 2, 5, 6})
+      QCOMPARE(top.buttonAt(top.anchors[n]), n);
+    auto left =
+        model.render({720, 640}, 1, 90, 12, 1, -1, QColor("#159bff"), false);
+    std::set<int> leftButtons(left.buttons.begin(), left.buttons.end());
+    for (int n : {3, 4, 7})
+      QVERIFY2(leftButtons.contains(n),
+               qPrintable(QString("Missing side button %1").arg(n)));
+    auto right =
+        model.render({720, 640}, 1, -90, 12, 1, -1, QColor("#159bff"), false);
+    std::set<int> rightButtons(right.buttons.begin(), right.buttons.end());
+    // Hidden physical side buttons must not be selectable through the body.
+    for (int n : {3, 4, 7})
+      QVERIFY(!rightButtons.contains(n));
+    QCOMPARE(right.buttonAt({-10, 0}), -1);
+    QCOMPARE(right.buttonAt({721, 0}), -1);
+    auto hidpi =
+        model.render({1440, 1280}, 2, 0, 90, 1, -1, QColor("#159bff"), false);
+    QCOMPARE(hidpi.image.devicePixelRatio(), 2.0);
+    QCOMPARE(hidpi.buttonAt(hidpi.anchors[5]), 5);
+    auto behind =
+        model.render({720, 640}, 1, 0, -60, 1, -1, QColor("#159bff"), false);
+    for (int n : {0, 1, 2, 5, 6})
+      QVERIFY(std::find(behind.buttons.begin(), behind.buttons.end(), n) ==
+              behind.buttons.end());
+    // A visible side callout reaches the disabled fire editor without
+    // bypassing protocol protections or writing any mock setting.
+    QTemporaryDir dir;
+    qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
+    Window w(true);
+    w.show();
+    QTRY_VERIFY(w.ready());
+    QTRY_VERIFY(!w.busy);
+    auto image = w.device.mockImage;
+    w.findChild<QPushButton *>("three-view")->click();
+    auto *camera = w.findChild<QComboBox *>("model-angle");
+    QVERIFY(camera);
+    camera->setCurrentIndex(2);
+    QTest::qWait(30);
+    QTest::mouseClick(w.viewer, Qt::LeftButton, Qt::NoModifier,
+                      w.viewer->calloutCenter(7).toPoint());
+    QCOMPARE(w.assignmentStack->currentIndex(), 7);
+    QVERIFY(!w.findChild<QComboBox *>("button8")->isEnabled());
+    QCOMPARE(w.device.mockImage, image);
+    w.close();
+    QTRY_VERIFY(!w.busy);
   }
   void essentialControlsFitCompactWindow() {
     QTemporaryDir dir;

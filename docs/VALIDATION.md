@@ -1,6 +1,21 @@
-# Native release 0.3.0 validation — 2026-11-14
+# Orbit 0.4.0 validation — 2026-11-14
 
-## Box checks
+## Orbit branding and GM320 model
+
+- The visible app/menu name is Orbit, with an original orbital mark. `orbit-mouse` and the existing compatibility command start the same binary. Package identifiers, private settings paths, preset version and the single-instance lock remain compatible with previous native releases.
+- The bundled GLB was reproducibly generated on Box from the pinned official top image and the reviewed side/oblique GM320 listing views. It has **15,735 vertices and 26,252 triangles**, eight control materials/anchors, the asymmetric thumb rest, side fire switch, two thumb switches, grooved wheel, center controls, RGB diffusers, cable strain relief, and the original printed product markings. Final asset SHA-256: `2e680a7fe705ab2e5660a70b4eb75ac43023ccb1ef9357316e0b40636a21f2be`.
+- Release and ASan/UBSan core/window suites passed after the final model changes. Model checks cover top-control order and picking, all three left-side controls, opposite-side occlusion, hidden underside controls, off-image coordinates, 2× scale picking and fire-editor selection without any mock write. Existing transaction and compact-control tests remain in the same suites.
+- All **312 protocol oracle cases** passed. The private KDE D-Bus discovery/write/readback/stale/rollback check passed with zero production desktop writes. No protocol or macro backend behavior changed in this release.
+- Isolated Box GUI renders covered all five pages, original photo, perspective/top/left/right/front/underside model views, assignment and fire editors, default/compact viewports and saved-preset restart. The immutable mesh loads on demand once; rendered frames are cached and hidden/static previews stop animation.
+- Static Box GUI sample after the final 0.4 model changes: **43,794 KiB PSS (~42.8 MiB)**, 52,384 KiB RSS, and **0.0% of one CPU core** over five seconds. A separate 30-frame model run at 1440×900 physical pixels measured **16.443855 ms median / 21.686249 ms p95** per frame. These measure CPU software rendering on Box; continuous optional rotation consumes CPU and is off by default.
+- Hardware-connected local Wayland verification passed on a separate 1366×768 headless KWin screen with private display socket, runtime, session bus and XDG directories. It captured the original image and new model/camera presets along with existing pages. No test input reached the working desktop. The before/after device read retained the entire current result, revision and settings, with **zero hardware writes or input injection**. The production saved-preset files were preserved.
+- The reconstruction follows the product's visible contours and details. Unverified physical dimensions, inferred height/underside and manufacturing tolerances are documented in [model provenance](../assets/GM320-MODEL.md); this is not measured CAD or a scan. Fire-button remapping is still disabled, with only seven verified assignment registers.
+
+## Earlier native-release validation
+
+The following records cover releases 0.1–0.3.
+
+### Box checks
 
 Ubuntu 24.04.5, 2 vCPU, 4 GiB RAM, GCC 13.3, system Qt 6.4.2. Builds used C++20, two parallel Ninja jobs, dynamic Qt linking, and no LTO. No physical mouse or exposed GPU was available on Box.
 
@@ -16,7 +31,7 @@ Ubuntu 24.04.5, 2 vCPU, 4 GiB RAM, GCC 13.3, system Qt 6.4.2. Builds used C++20,
 
 Static packaged 0.3.0 mock GUI idle sample with the official image: **35,077 KiB PSS (~34.3 MiB)**, 52,336 KiB RSS, and **0.0% of one CPU core** during a five-second window. This measures a static Qt offscreen GUI, not animated previews or real hardware polling. The 0.2.0 sample was 30,129 KiB PSS and the 0.1.0 sample was 25,719 KiB PSS; an earlier active-animation sample used about 4.8% of one core. These are Box measurements, not a comparison benchmark against Electron or a guarantee for every PC.
 
-## Local GM320 checks
+### Local GM320 checks
 
 - Native binary ran against the workstation's newer Qt runtime.
 - Discovery identified the configuration interface only: USB `30fa:1440`, interface `01`, descriptor SHA-256 `0ec3eb2dc293bd8edcb490f5cee9ab272ebec8f4e0edc5f9f365f1bab53b2018`. Other interfaces and keyboard endpoints were not eligible.

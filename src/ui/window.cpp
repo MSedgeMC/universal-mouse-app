@@ -38,7 +38,7 @@ QJsonObject Window::profile() const {
 }
 void Window::setProfile(QJsonObject p) { profiles[profileIndex] = p; }
 Window::Window(bool mock) : device(mock), integration(mock) {
-  setWindowTitle("Universal Mouse App — GM320");
+  setWindowTitle("Orbit — GM320");
   resize(1280, 820);
   setMinimumSize(1040, 680);
   for (int i = 0; i < 4; ++i)
@@ -120,14 +120,14 @@ void Window::build() {
   auto *mark = new QLabel;
   mark->setPixmap(designIcon("brand", QColor("#159bff"), 22).pixmap(22, 22));
   appRow->addWidget(mark);
-  appRow->addWidget(designLabel("UNIVERSAL", "brand"));
+  appRow->addWidget(designLabel("ORBIT", "brand"));
   auto *divider = new QFrame;
   divider->setObjectName("brand-divider");
   divider->setFixedSize(1, 18);
   appRow->addWidget(divider);
-  appRow->addWidget(designLabel("MOUSE", "app-section"));
+  appRow->addWidget(designLabel("MOUSE CONTROL", "app-section"));
   appRow->addStretch();
-  appRow->addWidget(designLabel("LINUX  /  0.3.0", "micro"));
+  appRow->addWidget(designLabel("LINUX  /  0.4.0", "micro"));
   layout->addWidget(appBar);
 
   auto *deviceBar = new QFrame;
@@ -682,10 +682,26 @@ bool Window::verifyGui(const QString &directory) {
             "Macro export failed");
     findChild<QPushButton *>("three-view")->click();
     writeImage(0, "viewer-3d");
+    auto *camera = findChild<QComboBox *>("model-angle");
+    camera->setCurrentIndex(1);
+    writeImage(0, "model-top");
+    camera->setCurrentIndex(2);
+    writeImage(0, "model-left");
+    camera->setCurrentIndex(3);
+    writeImage(0, "model-right");
+    camera->setCurrentIndex(4);
+    writeImage(0, "model-front");
+    camera->setCurrentIndex(5);
+    writeImage(0, "model-bottom");
+    camera->setCurrentIndex(0);
+    viewer->resetView();
     writeImage(3, "macro-saved");
     resize(1040, 720);
     findChild<QPushButton *>("top-view")->click();
     writeImage(0, "compact-assignments");
+    findChild<QPushButton *>("three-view")->click();
+    writeImage(0, "compact-model");
+    findChild<QPushButton *>("top-view")->click();
     selectButton(7);
     writeImage(0, "compact-editor");
     assignmentPanel->hide();

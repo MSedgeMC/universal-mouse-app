@@ -40,14 +40,20 @@ QIcon designIcon(const QString &name, QColor color, int size) {
   p.setRenderHint(QPainter::Antialiasing);
   p.scale(size / 24., size / 24.);
   p.setPen(QPen(color, 1.65, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-  if (name == "mouse" || name == "brand") {
+  if (name == "brand") {
+    p.save();
+    p.translate(12, 12);
+    p.rotate(-32);
+    p.drawEllipse(QRectF(-10, -5, 20, 10));
+    p.restore();
+    p.drawEllipse(QRectF(6, 3, 12, 18));
+    p.setBrush(color);
+    p.setPen(Qt::NoPen);
+    p.drawEllipse(QPointF(20.2, 7.4), 2.1, 2.1);
+  } else if (name == "mouse") {
     p.drawRoundedRect(QRectF(6, 2, 12, 20), 6, 6);
     p.drawLine(12, 3, 12, 8);
     p.drawRoundedRect(QRectF(10.5, 6, 3, 5), 1.5, 1.5);
-    if (name == "brand") {
-      p.drawLine(2, 6, 2, 11);
-      p.drawLine(22, 14, 22, 19);
-    }
   } else if (name == "layers") {
     p.drawPolygon(QPolygonF({{3, 8}, {12, 3}, {21, 8}, {12, 13}}));
     p.drawLine(3, 13, 12, 18);

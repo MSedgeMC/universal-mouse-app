@@ -25,8 +25,8 @@ int main(int argc, char **argv) {
     static_cast<QApplication *>(app.get())->setFont(
         QFont("Ubuntu", 10, QFont::Medium));
   }
-  QCoreApplication::setApplicationName("Universal Mouse App");
-  QCoreApplication::setApplicationVersion("0.3.0");
+  QCoreApplication::setApplicationName("Orbit");
+  QCoreApplication::setApplicationVersion("0.4.0");
   QCommandLineParser p;
   p.addHelpOption();
   p.addVersionOption();
@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
     mouse::privateDir(mouse::configDir());
     QLockFile lock(mouse::configDir() + "/application.lock");
     lock.setStaleLockTime(30000);
-    mouse::require(lock.tryLock(), "Universal Mouse App is already running");
+    mouse::require(lock.tryLock(), "Orbit is already running");
     QApplication::setWindowIcon(QIcon(":/design/universal-mouse-app.svg"));
     mouse::Window window(mock);
     if (auto *screen = QGuiApplication::primaryScreen();

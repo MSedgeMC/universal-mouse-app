@@ -2,15 +2,12 @@
 #include <QFontMetrics>
 #include <QJsonArray>
 #include <QKeyEvent>
-#include <QMatrix4x4>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QTransform>
-#include <QVector3D>
 #include <QWheelEvent>
 #include <QtMath>
-#include <algorithm>
 #include <cmath>
 namespace mouse {
 Viewer::Viewer(QWidget *p)
@@ -28,7 +25,7 @@ Viewer::Viewer(QWidget *p)
   animation.setInterval(50);
   connect(&animation, &QTimer::timeout, this, [this] {
     if (autoRotate && threeD)
-      yaw += .7;
+      yaw = std::fmod(yaw + .7, 360.);
     update();
   });
 }
@@ -65,9 +62,14 @@ QPointF Viewer::calloutCenter(int n) const {
   return calloutRegions.value(n).center();
 }
 void Viewer::resetView() {
-  yaw = -25;
-  pitch = 25;
+  yaw = 24;
+  pitch = 60;
   zoom = 1;
+  update();
+}
+void Viewer::setViewAngles(double horizontal, double vertical) {
+  yaw = horizontal;
+  pitch = qBound(-75., vertical, 90.);
   update();
 }
 void Viewer::setAutoRotate(bool enabled) {
@@ -157,21 +159,20 @@ QColor Viewer::previewColor() const {
                           color.blueF() * value);
 }
 int Viewer::buttonAt(QPointF point) const {
-  for (int n = 0; n < centers.size(); ++n)
-    if (QLineF(point, centers[n]).length() <= 8)
-      return n;
   if (calloutsVisible)
     for (int n = 0; n < calloutRegions.size(); ++n)
       if (calloutRegions[n].contains(point))
         return n;
   if (threeD) {
-    for (auto it = pickFaces.crbegin(); it != pickFaces.crend(); ++it)
-      if (it->second >= 0 && it->first.containsPoint(point, Qt::OddEvenFill))
-        return it->second;
-  } else
+    return modelCache.buttonAt(point);
+  } else {
+    for (int n = 0; n < centers.size(); ++n)
+      if (QLineF(point, centers[n]).length() <= 8)
+        return n;
     for (int n = 0; n < hitRegions.size(); ++n)
       if (hitRegions[n].contains(point))
         return n;
+  }
   return -1;
 }
 QPointF Viewer::buttonCenter(int n) const { return centers.value(n); }
@@ -188,9 +189,9 @@ void Viewer::keyPressEvent(QKeyEvent *e) {
   else if (e->key() == Qt::Key_Right)
     yaw += 6;
   else if (e->key() == Qt::Key_Up)
-    pitch = qMin(70., pitch + 6);
+    pitch = qMin(90., pitch + 6);
   else if (e->key() == Qt::Key_Down)
-    pitch = qMax(-70., pitch - 6);
+    pitch = qMax(-75., pitch - 6);
   else if (e->key() == Qt::Key_Plus || e->key() == Qt::Key_Equal)
     zoom = qMin(1.7, zoom + .1);
   else if (e->key() == Qt::Key_Minus)
@@ -221,7 +222,6 @@ void Viewer::paintEvent(QPaintEvent *) {
   hitRegions.fill({}, 8);
   calloutRegions.fill({}, 8);
   centers.fill({}, 8);
-  pickFaces.clear();
   QColor glow = displayLighting ? previewColor() : QColor("#159bff");
   if (threeD)
     drawThreeD(p, glow);
@@ -305,225 +305,36 @@ void Viewer::drawTop(QPainter &p, QColor glow) {
   }
 }
 void Viewer::drawThreeD(QPainter &p, QColor glow) {
-  struct Face {
-    QPolygonF polygon;
-    float depth;
-    QColor color;
-    int button;
-  };
-  QVector<Face> mesh;
-  QMatrix4x4 rotation;
-  rotation.rotate(pitch + 28, 1, 0, 0);
-  rotation.rotate(yaw, 0, 1, 0);
-  double scale = qMin(width() / 4.4, height() / 3.7) * zoom;
-  auto project = [&](QVector3D point) {
-    point = rotation.map(point);
-    double perspective = 5. / (5. - point.z());
-    return QPointF(width() / 2. + point.x() * scale * perspective,
-                   height() / 2. - point.y() * scale * perspective + 24);
-  };
-  auto face = [&](QVector<QVector3D> points, QColor color, int id = -1) {
-    QPolygonF poly;
-    float depth = 0;
-    for (auto point : points) {
-      poly << project(point);
-      depth += rotation.map(point).z();
-    }
-    mesh.append({poly, depth / points.size(), color, id});
-  };
-  // A closed, interpolated original shell avoids flat end caps and holes.
-  const QVector<float> lengths = {-1.39f, -1.30f, -1.10f, -.60f, 0.f,
-                                  .65f,   1.05f,  1.29f,  1.38f};
-  const QVector<float> widths = {.22f, .44f, .61f, .74f, .81f,
-                                 .82f, .66f, .35f, .025f};
-  const QVector<float> heights = {.10f, .20f, .27f, .43f, .57f,
-                                  .57f, .41f, .20f, .025f};
-  auto shape = [&](float z) {
-    int n = 0;
-    while (n < lengths.size() - 2 && z > lengths[n + 1])
-      ++n;
-    float t =
-        qBound(0.f, (z - lengths[n]) / (lengths[n + 1] - lengths[n]), 1.f);
-    auto interpolate = [&](const QVector<float> &values) {
-      float a = values[qMax(0, n - 1)], b = values[n], c = values[n + 1],
-            d = values[qMin(n + 2, int(values.size() - 1))];
-      return .5f *
-             ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t +
-              (-a + 3 * b - 3 * c + d) * t * t * t);
-    };
-    return qMakePair(qMax(.02f, interpolate(widths)),
-                     qMax(.02f, interpolate(heights)));
-  };
-  auto topY = [&](float x, float z) {
-    auto s = shape(z);
-    float ratio = qBound(-1.f, x / s.first, 1.f);
-    return .09f + s.second * std::sqrt(qMax(0.f, 1 - ratio * ratio));
-  };
-  auto shade = [&](const QVector<QVector3D> &points, QColor base) {
-    auto normal = rotation.mapVector(
-        QVector3D::normal(points[1] - points[0], points[2] - points[0]));
-    auto key = QVector3D(-.45f, .65f, .60f).normalized();
-    float diffuse = qMax(0.f, QVector3D::dotProduct(normal, key));
-    float sheen =
-        std::pow(qMax(0.f, QVector3D::dotProduct(
-                               normal, QVector3D(-.25f, .3f, 1).normalized())),
-                 18);
-    float level = .46f + .65f * diffuse;
-    return QColor::fromRgbF(qMin(1., base.redF() * level + .07 * sheen),
-                            qMin(1., base.greenF() * level + .07 * sheen),
-                            qMin(1., base.blueF() * level + .07 * sheen));
-  };
-  constexpr int rings = 48, segments = 64;
-  auto shellPoint = [&](int ring, int segment) {
-    float z =
-        lengths.front() + (lengths.back() - lengths.front()) * ring / rings;
-    auto s = shape(z);
-    float theta = 6.2831853f * segment / segments, sine = std::sin(theta);
-    return QVector3D(-s.first * std::cos(theta),
-                     .09f + (sine >= 0 ? s.second : .18f) * sine, z);
-  };
-  QPointF floor = project({0, -.10f, .30f}) + QPointF(0, 23);
-  p.save();
-  p.translate(floor);
-  p.scale(1, .36);
-  QRadialGradient shadow(0, 0, scale * 1.30);
-  shadow.setColorAt(0, QColor(0, 0, 0, 185));
-  shadow.setColorAt(.6, QColor(0, 0, 0, 75));
-  shadow.setColorAt(1, QColor(0, 0, 0, 0));
-  p.setBrush(shadow);
-  p.setPen(Qt::NoPen);
-  p.drawEllipse(QPointF(0, 0), scale * 1.30, scale * 1.30);
-  p.restore();
-  for (int i = 0; i < rings; ++i)
-    for (int j = 0; j < segments; ++j) {
-      QVector<QVector3D> points = {shellPoint(i, j), shellPoint(i + 1, j),
-                                   shellPoint(i + 1, j + 1),
-                                   shellPoint(i, j + 1)};
-      auto center = (points[0] + points[2]) / 2;
-      bool top = j < segments / 2;
-      bool front = top && center.z() < -.25f;
-      int id = front && center.x() < -.07f  ? 0
-               : front && center.x() > .07f ? 1
-                                            : -1;
-      bool seam = top && ((front && qAbs(center.x()) < .025f) ||
-                          qAbs(center.z() + .25f) < .020f);
-      QColor material(seam ? "#090a0c" : top ? "#34373c" : "#17191d");
-      if (id == chosen)
-        material = QColor("#364757");
-      face(points, shade(points, material), id);
-    }
-  for (int end : {0, rings}) {
-    QVector<QVector3D> cap;
-    for (int j = 0; j < segments; ++j)
-      cap << shellPoint(end, j);
-    face(cap, QColor("#17191d"));
+  // Load the immutable asset once, only when a 3D view is requested. The
+  // ordinary photo and lighting pages do not duplicate a mesh in memory.
+  static const MouseModel model;
+  if (!model.valid()) {
+    p.setPen(QColor("#aeb8c8"));
+    p.drawText(rect(), Qt::AlignCenter, "GM320 model could not be loaded");
+    return;
   }
-  auto roundedOutline = [](float a, float b, float radius) {
-    QVector<QPointF> outline;
-    for (int corner = 0; corner < 4; ++corner) {
-      float cx = (corner == 0 || corner == 3) ? a - radius : -a + radius,
-            cy = corner < 2 ? b - radius : -b + radius;
-      for (int step = 0; step <= 5; ++step) {
-        float angle = (corner * 90 + step * 18) * 3.14159265f / 180;
-        outline << QPointF(cx + radius * std::cos(angle),
-                           cy + radius * std::sin(angle));
-      }
-    }
-    return outline;
-  };
-  auto topControl = [&](float x, float z, float halfWidth, float halfLength,
-                        int id) {
-    auto outline = roundedOutline(halfWidth, halfLength,
-                                  qMin(halfWidth, halfLength) * .55f);
-    QVector3D center(x, topY(x, z) + .027f, z);
-    for (int n = 0; n < outline.size(); ++n) {
-      auto a = outline[n], b = outline[(n + 1) % outline.size()];
-      auto point = [&](QPointF offset, float lift) {
-        float px = x + offset.x(), pz = z + offset.y();
-        return QVector3D(px, topY(px, pz) + lift, pz);
-      };
-      auto pa = point(a, .024f), pb = point(b, .024f);
-      QVector<QVector3D> top = {center, pb, pa};
-      face(top, shade(top, QColor(id == chosen ? "#3a586e" : "#353941")), id);
-      face({pa, pb, point(b, .004f), point(a, .004f)}, QColor("#090b0e"), id);
-    }
-  };
-  topControl(0, -.84f, .13f, .25f, 2);
-  topControl(0, -.12f, .095f, .105f, 5);
-  topControl(0, .23f, .095f, .105f, 6);
-  topControl(-.43f, -.95f, .065f, .16f, 7);
-  float wheelZ = -.84f, wheelY = topY(0, wheelZ) - .015f;
-  constexpr int wheelSegments = 48;
-  auto wheelPoint = [&](int segment, float x) {
-    float angle = 6.2831853f * segment / wheelSegments;
-    return QVector3D(x, wheelY + .14f * std::sin(angle),
-                     wheelZ + .14f * std::cos(angle));
-  };
-  for (int n = 0; n < wheelSegments; ++n) {
-    QVector<QVector3D> tread = {wheelPoint(n, -.07f), wheelPoint(n, .07f),
-                                wheelPoint(n + 1, .07f),
-                                wheelPoint(n + 1, -.07f)};
-    face(tread, shade(tread, QColor(n % 3 == 0 ? "#777d86" : "#292d34")), 2);
+  // Cache a supersampled frame so diagonal seams, diffusers and the printed
+  // logo remain smooth without continuous sampling on an idle page.
+  qreal dpr = qBound(1.0, devicePixelRatioF() * 2.0, 2.0);
+  QSize pixels(qCeil(width() * dpr), qCeil(height() * dpr));
+  if (modelCache.image.isNull() || modelSize != pixels || modelDpr != dpr ||
+      modelYaw != yaw || modelPitch != pitch || modelZoom != zoom ||
+      modelSelected != chosen || modelLight != glow ||
+      modelLighting != displayLighting) {
+    modelCache = model.render(pixels, dpr, yaw, pitch, zoom, chosen, glow,
+                              displayLighting);
+    modelSize = pixels;
+    modelDpr = dpr;
+    modelYaw = yaw;
+    modelPitch = pitch;
+    modelZoom = zoom;
+    modelSelected = chosen;
+    modelLight = glow;
+    modelLighting = displayLighting;
   }
-  for (float side : {-.07f, .07f}) {
-    QVector<QVector3D> cap;
-    for (int n = 0; n < wheelSegments; ++n)
-      cap << wheelPoint(n, side);
-    face(cap, QColor("#15171b"), 2);
-  }
-  auto sideX = [&](float y, float z) {
-    auto s = shape(z);
-    float ratio = qBound(-1.f, (y - .09f) / s.second, 1.f);
-    return -s.first * std::sqrt(qMax(0.f, 1 - ratio * ratio)) - .026f;
-  };
-  for (int id : {3, 4}) {
-    float z = id == 3 ? -.35f : .10f;
-    auto outline = roundedOutline(.16f, .062f, .04f);
-    QVector3D center(sideX(.22f, z), .22f, z);
-    for (int n = 0; n < outline.size(); ++n) {
-      auto point = [&](QPointF offset) {
-        float py = .22f + offset.y(), pz = z + offset.x();
-        return QVector3D(sideX(py, pz), py, pz);
-      };
-      QVector<QVector3D> surface = {center, point(outline[n]),
-                                    point(outline[(n + 1) % outline.size()])};
-      face(surface,
-           shade(surface, QColor(id == chosen ? "#426780" : "#555b65")), id);
-    }
-  }
-  std::sort(mesh.begin(), mesh.end(),
-            [](const Face &a, const Face &b) { return a.depth < b.depth; });
-  p.setPen(Qt::NoPen);
-  for (const auto &f : mesh) {
-    p.setBrush(f.color);
-    p.setPen(QPen(f.color, .5));
-    p.drawPolygon(f.polygon);
-    pickFaces.append({f.polygon, f.button});
-    if (f.button >= 0)
-      hitRegions[f.button].addPolygon(f.polygon);
-  }
-  QColor rim = glow;
-  rim.setAlpha(150);
-  p.setPen(QPen(rim, 1.1));
-  for (int side : {-1, 1})
-    for (int i = 0; i < rings; ++i) {
-      float a = lengths.front() +
-                (lengths.back() - lengths.front()) * i / rings,
-            b = lengths.front() +
-                (lengths.back() - lengths.front()) * (i + 1) / rings;
-      p.drawLine(project({side * shape(a).first, .075f, a}),
-                 project({side * shape(b).first, .075f, b}));
-    }
-  QVector<QVector3D> controls = {{-.30f, topY(-.30f, -.76f), -.76f},
-                                 {.30f, topY(.30f, -.76f), -.76f},
-                                 {0, wheelY + .14f, wheelZ},
-                                 {sideX(.22f, -.35f), .22f, -.35f},
-                                 {sideX(.22f, .10f), .22f, .10f},
-                                 {0, topY(0, -.12f) + .027f, -.12f},
-                                 {0, topY(0, .23f) + .027f, .23f},
-                                 {-.43f, topY(-.43f, -.95f) + .027f, -.95f}};
-  for (int n = 0; n < controls.size(); ++n)
-    centers[n] = project(controls[n]);
+  p.drawImage(QPointF(0, 0), modelCache.image);
+  for (int n = 0; n < 8; ++n)
+    centers[n] = modelCache.anchors[n];
 }
 void Viewer::drawCallouts(QPainter &p) {
   const QVector<int> left = {0, 7, 3, 4}, right = {1, 2, 5, 6};
@@ -545,17 +356,18 @@ void Viewer::drawCallouts(QPainter &p) {
       QPointF target = centers[n];
       QPointF elbow(side == 0 ? target.x() - 36 : target.x() + 36, y);
       bool active = n == chosen, hot = n == hovered;
+      bool hidden = threeD && !modelCache.visible[n];
       p.setPen(QPen(QColor(active ? "#159bff"
                            : hot  ? "#909baa"
                                   : "#535860"),
-                    active ? 1.25 : .8));
+                    active ? 1.25 : .8, hidden ? Qt::DashLine : Qt::SolidLine));
       p.setBrush(Qt::NoBrush);
       QPainterPath line;
       line.moveTo(start);
       line.lineTo(elbow);
       line.lineTo(target);
       p.drawPath(line);
-      p.setBrush(QColor(active ? "#159bff" : "#8b919b"));
+      p.setBrush(QColor(active ? "#159bff" : hidden ? "#535b69" : "#8b919b"));
       p.setPen(Qt::NoPen);
       p.drawEllipse(start, 2, 2);
       p.drawEllipse(target, active ? 4 : 3, active ? 4 : 3);
@@ -620,7 +432,7 @@ void Viewer::mouseMoveEvent(QMouseEvent *e) {
     if (delta.manhattanLength() > 1)
       moved = true;
     yaw += delta.x() * .7;
-    pitch = qBound(-70., pitch + delta.y() * .5, 70.);
+    pitch = qBound(-75., pitch + delta.y() * .5, 90.);
     last = e->position();
     update();
   }

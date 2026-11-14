@@ -1,8 +1,8 @@
-# Universal Mouse App
+# Orbit
 
-A native **C++20 / Qt 6 Widgets** mouse configurator for Linux, starting with the Ant Esports GM320 / Instant `30fa:1440` controller. No Electron, Node, Go, or application Python runtime is required.
+**Orbit** is a native **C++20 / Qt 6 Widgets** mouse configurator for Linux, starting with the Ant Esports GM320 / Instant `30fa:1440` controller. No Electron, Node, Go, or application Python runtime is required.
 
-**Status: experimental native release 0.3.0.** The native app runs on KDE Wayland and has been checked with a physical GM320. The repository name describes an extensible driver architecture; it does not promise support for arbitrary mice. Configuration writes require the supported USB identity, interface, and exact HID descriptor.
+**Status: experimental native release 0.4.0.** The native app runs on KDE Wayland and has been checked with a physical GM320. The driver architecture is extensible; support currently begins with the GM320. Configuration writes require the supported USB identity, interface, and exact HID descriptor.
 
 ## Features
 
@@ -13,7 +13,7 @@ A native **C++20 / Qt 6 Widgets** mouse configurator for Linux, starting with th
 - Four local presets with separate Save and Apply actions; JSON import/export, undo, stable readback, private backups, rollback, and selective restore.
 - Linux keyboard macros: 67 keys, down/up/delay events, sequence preview, and three mouse triggers through the external Input Remapper service.
 - GM320-specific KDE pointer acceleration and scroll factor; GNOME/Cinnamon pointer speed and optional X11 imwheel integration have narrower scope.
-- Razer Synapse-inspired mouse layout with Logitech G HUB-inspired black/gray/blue colors: horizontal navigation, official GM320 product image and eight button targets, an on-demand assignment editor, and native DPI, lighting, and macro pages. An original optional 3D schematic supports orbit/zoom, keyboard navigation, auto rotation, and app-local input testing.
+- Razer Synapse-inspired mouse layout with Logitech G HUB-inspired black/gray/blue colors: horizontal navigation, official GM320 product image and eight button targets, an on-demand assignment editor, and native DPI, lighting, and macro pages. A detailed [GM320 3D model](assets/GM320-MODEL.md), reconstructed from product views, supports orbit/zoom, keyboard navigation, auto rotation, and app-local input testing.
 
 Onboard macros, onboard keyboard programming, hardware profile switching, additional mouse drivers, and complete vendor RGB parity remain unimplemented. Polling selection is a stored choice; this app does not measure the physical report rate. Most button/lighting writes still need physical behavior measurements.
 
@@ -24,16 +24,16 @@ Download an archive or Debian package from [Releases](https://github.com/MSedgeM
 For a system install:
 
 ```sh
-sudo apt install ./universal-mouse-app-0.3.0-Linux.deb
+sudo apt install ./universal-mouse-app-0.4.0-Linux.deb
 ```
 
 For a user install, install the Qt runtime packages (`libqt6widgets6`, `libqt6dbus6`, `libqt6svg6`, and `qt6-wayland`, or their distribution equivalents), extract the archive, and run:
 
 ```sh
-./universal-mouse-app-0.3.0-Linux/usr/share/doc/universal-mouse-app/install-user.sh
+./universal-mouse-app-0.4.0-Linux/usr/share/doc/universal-mouse-app/install-user.sh
 ```
 
-Start **Universal Mouse App** from the application menu. Run `universal-mouse-app --mock` for a demo with no hardware or desktop writes. The app must run as a normal desktop user.
+Start **Orbit** from the application menu. Run `orbit-mouse --mock` for a demo with no hardware or desktop writes. The app must run as a normal desktop user. The package, compatibility command, repository URL, and settings directory retain `universal-mouse-app` so existing installs and presets keep working. `orbit-mouse` is the new launcher command.
 
 The Debian package installs a narrowly scoped udev rule. For an archive installation without existing mouse access, install `usr/lib/udev/rules.d/70-universal-mouse-app.rules` into `/etc/udev/rules.d/`, reload the rules with `sudo udevadm control --reload-rules`, and reconnect the mouse. Do not grant access to every input device or run the GUI as root.
 
@@ -57,7 +57,7 @@ This project's implementation builds, dependency installation, full tests, sanit
 
 ## Original design
 
-The user selected Razer Synapse's mouse-page hierarchy with Logitech G HUB's neutral surfaces and blue accent. Theme code, icons and the optional 3D schematic are original. The top view uses the user-selected [official Ant Esports GM320 image](assets/GM320-IMAGE.md), with source and ownership recorded separately; Razer and Logitech artwork is not bundled. This is an independent Linux implementation with the capabilities listed above. Required notices remain in the source and distribution because the hardware protocol still derives from the earlier MIT app. See [design notes](docs/DESIGN.md).
+The user selected Razer Synapse's mouse-page hierarchy with Logitech G HUB's neutral surfaces and blue accent. Theme code, icons and the GM320 mesh geometry are original. The top view uses the user-selected [official Ant Esports GM320 image](assets/GM320-IMAGE.md), with source and ownership recorded separately; Razer and Logitech artwork is not bundled. This is an independent Linux implementation with the capabilities listed above. The model uses traced product contours and inferred depth, without claiming measured CAD accuracy. Required notices remain in the source and distribution because the hardware protocol still derives from the earlier MIT app. See [design notes](docs/DESIGN.md).
 
 ## License
 

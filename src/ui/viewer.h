@@ -1,4 +1,5 @@
 #pragma once
+#include "model.h"
 #include <QColor>
 #include <QElapsedTimer>
 #include <QJsonObject>
@@ -19,6 +20,7 @@ public:
   void setCalloutsVisible(bool);
   void setDisplayLighting(bool);
   void resetView();
+  void setViewAngles(double yaw, double pitch);
   void setLighting(const QJsonObject &settings, const QJsonObject &live);
   void setAutoRotate(bool);
   void setTestEnabled(bool);
@@ -41,12 +43,18 @@ protected:
 
 private:
   bool threeD = false, dragging = false, moved = false;
-  double yaw = -25, pitch = 25, zoom = 1;
+  double yaw = 24, pitch = 60, zoom = 1;
   int chosen = 0;
   QColor light = QColor("#a9e9cc");
   QPointF last;
   QVector<QPainterPath> hitRegions;
-  QVector<QPair<QPolygonF, int>> pickFaces;
+  ModelRender modelCache;
+  QSize modelSize;
+  qreal modelDpr = 0;
+  double modelYaw = 0, modelPitch = 0, modelZoom = 0;
+  int modelSelected = -2;
+  QColor modelLight;
+  bool modelLighting = false;
   QVector<QPointF> centers;
   QVector<QRectF> calloutRegions;
   QStringList assignmentLabels;

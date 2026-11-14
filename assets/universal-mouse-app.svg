@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><defs><linearGradient id="base" x2="1" y2="1"><stop stop-color="#20252d"/><stop offset="1" stop-color="#0c0f14"/></linearGradient></defs><rect x="5" y="5" width="118" height="118" rx="29" fill="url(#base)"/><path d="M43 40c0-12 9-22 21-22s21 10 21 22v45c0 14-9 25-21 25S43 99 43 85Z" fill="none" stroke="#159bff" stroke-width="5"/><path d="M64 22v25" stroke="#159bff" stroke-width="5" stroke-linecap="round"/><rect x="59" y="34" width="10" height="19" rx="5" fill="#159bff"/><path d="M45 62h38M29 42v17M99 69v17" stroke="#6c7784" stroke-width="4" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs><linearGradient id="base" x2="1" y2="1"><stop stop-color="#232831"/><stop offset="1" stop-color="#0a0d13"/></linearGradient><linearGradient id="orbit" x2="1" y2="1"><stop stop-color="#62c7ff"/><stop offset="1" stop-color="#159bff"/></linearGradient></defs>
+  <rect x="5" y="5" width="118" height="118" rx="29" fill="url(#base)"/>
+  <g fill="none" stroke="url(#orbit)" stroke-width="5"><ellipse cx="64" cy="64" rx="25" ry="42"/><ellipse cx="64" cy="64" rx="45" ry="21" transform="rotate(-32 64 64)"/></g>
+  <circle cx="100" cy="39" r="7" fill="#9cddff"/>
+</svg>

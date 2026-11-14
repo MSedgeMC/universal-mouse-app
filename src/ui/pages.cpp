@@ -141,7 +141,9 @@ void Window::buildCustomize() {
   viewRow->setSpacing(3);
   auto *viewGroup = new QButtonGroup(this);
   auto *top = pageButton("Top view", viewRow, "segment");
-  auto *three = pageButton("3D schematic", viewRow, "segment");
+  auto *three = pageButton("3D model", viewRow, "segment");
+  three->setToolTip("GM320 reconstructed from product photos. Drag to orbit, "
+                    "scroll to zoom, or use arrow keys. Home resets the view.");
   top->setFixedHeight(32);
   three->setFixedHeight(32);
   top->setCheckable(true);
@@ -161,8 +163,27 @@ void Window::buildCustomize() {
   connect(three, &QPushButton::toggled, rotate, &QWidget::setVisible);
   connect(rotate, &QCheckBox::toggled, viewer, &Viewer::setAutoRotate);
   controls->addWidget(rotate);
+  auto *angle = new QComboBox;
+  angle->addItems(
+      {"Perspective", "Top", "Left side", "Right side", "Front", "Underside"});
+  angle->setObjectName("model-angle");
+  angle->setAccessibleName("3D camera view");
+  angle->setFixedWidth(133);
+  angle->setVisible(false);
+  connect(three, &QPushButton::toggled, angle, &QWidget::setVisible);
+  connect(angle, &QComboBox::currentIndexChanged, this, [this, rotate](int n) {
+    rotate->setChecked(false);
+    const QVector<QPointF> angles = {{24, 60},  {0, 90},   {90, 12},
+                                     {-90, 12}, {150, 45}, {0, -60}};
+    viewer->setViewAngles(angles[n].x(), angles[n].y());
+  });
+  controls->addWidget(angle);
   auto *reset = pageButton("Reset view", controls);
-  connect(reset, &QPushButton::clicked, viewer, &Viewer::resetView);
+  connect(reset, &QPushButton::clicked, this, [this, angle, rotate] {
+    rotate->setChecked(false);
+    angle->setCurrentIndex(0);
+    viewer->resetView();
+  });
   controls->addStretch();
   v->addLayout(controls);
   auto *testRow = new QHBoxLayout;
