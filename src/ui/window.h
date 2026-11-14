@@ -14,8 +14,11 @@
 #include <QRadioButton>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QTabWidget>
 #include <QTimer>
+#include <QToolButton>
+#include <QVBoxLayout>
 namespace mouse {
 class Window : public QMainWindow {
   Q_OBJECT
@@ -41,14 +44,18 @@ private:
   QJsonObject current, baseline, desktop;
   QString revisionToken;
   QLabel *status, *connection, *desktopNote, *macroNote, *tester;
-  QLabel *pageTitle, *pageSubtitle, *dpiSummary, *rateSummary, *lightSummary,
-      *presetState, *fireNote;
+  QLabel *dpiSummary, *rateSummary, *lightSummary, *presetState, *fireNote,
+      *assignmentName, *assignmentNumber, *macroEmpty;
   QVector<QPushButton *> navigation;
   QVector<QFrame *> assignmentRows;
-  QVector<QLabel *> dpiValues;
-  QSlider *dpiSlider;
+  QVector<QFrame *> dpiTiles;
+  QSlider *dpiSlider, *brightnessSlider, *speedSlider;
   QSpinBox *dpiEditor;
   int dpiEditing = 0;
+  int selectedButton = 0;
+  QFrame *assignmentPanel;
+  QStackedWidget *assignmentStack;
+  QToolButton *profileMenu;
   QComboBox *profileCombo, *polling, *effect, *direction, *liveEffect,
       *eventType, *eventKey, *trigger;
   QVector<QComboBox *> buttons, dpi, response;
@@ -68,6 +75,14 @@ private:
   QTimer previewTimer;
   int previewAt = 0;
   void build();
+  QVBoxLayout *addPage(const QString &, bool canvas = false);
+  void buildCustomize();
+  void buildPerformance();
+  void buildLighting();
+  void buildMacros();
+  void buildDesktop();
+  void selectButton(int, bool openEditor = true);
+  void syncPresentation();
   void render();
   void collect();
   void dirty();

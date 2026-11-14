@@ -3,6 +3,7 @@
 #include <QElapsedTimer>
 #include <QJsonObject>
 #include <QPainterPath>
+#include <QPixmap>
 #include <QPointF>
 #include <QTimer>
 #include <QWidget>
@@ -14,12 +15,16 @@ public:
   void setThreeD(bool);
   void setColor(QColor);
   void setSelected(int);
+  void setAssignments(const QStringList &);
+  void setCalloutsVisible(bool);
+  void setDisplayLighting(bool);
   void resetView();
   void setLighting(const QJsonObject &settings, const QJsonObject &live);
   void setAutoRotate(bool);
   void setTestEnabled(bool);
   int buttonAt(QPointF) const;
   QPointF buttonCenter(int) const;
+  QPointF calloutCenter(int) const;
 signals:
   void selected(int);
   void tested(QString);
@@ -43,6 +48,15 @@ private:
   QVector<QPainterPath> hitRegions;
   QVector<QPair<QPolygonF, int>> pickFaces;
   QVector<QPointF> centers;
+  QVector<QRectF> calloutRegions;
+  QStringList assignmentLabels;
+  bool calloutsVisible = true, displayLighting = false;
+  int hovered = -1;
+  QPixmap artwork, lightingArtwork, lightingMask, lightingCache;
+  QColor lightingCacheColor;
+  QPixmap artworkCache;
+  QSize artworkSize;
+  qreal artworkDpr = 0;
   QTimer animation;
   QElapsedTimer elapsed;
   QString lightEffect = "Light On";
@@ -55,5 +69,8 @@ private:
   void syncAnimation();
   QColor previewColor() const;
   QString testSummary() const;
+  void drawTop(QPainter &, QColor);
+  void drawThreeD(QPainter &, QColor);
+  void drawCallouts(QPainter &);
 };
 } // namespace mouse

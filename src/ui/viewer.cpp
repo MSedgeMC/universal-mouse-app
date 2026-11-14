@@ -1,20 +1,29 @@
 #include "viewer.h"
+#include <QFontMetrics>
 #include <QJsonArray>
 #include <QKeyEvent>
 #include <QMatrix4x4>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QTransform>
 #include <QVector3D>
 #include <QWheelEvent>
+#include <QtMath>
 #include <algorithm>
 #include <cmath>
 namespace mouse {
-Viewer::Viewer(QWidget *p) : QWidget(p) {
+Viewer::Viewer(QWidget *p)
+    : QWidget(p), artwork(":/design/gm320-top.png"),
+      lightingArtwork(":/design/gm320-neutral.png"),
+      lightingMask(":/design/gm320-light-mask.png") {
   setMinimumSize(310, 330);
   setMouseTracking(true);
   setFocusPolicy(Qt::StrongFocus);
   setAccessibleName("Mouse preview and input tester");
+  assignmentLabels = {"Left click",  "Right click", "Middle click",
+                      "Forward",     "Back",        "DPI Loop",
+                      "Color cycle", "Fire button"};
   elapsed.start();
   animation.setInterval(50);
   connect(&animation, &QTimer::timeout, this, [this] {
@@ -33,8 +42,27 @@ void Viewer::setColor(QColor c) {
   update();
 }
 void Viewer::setSelected(int i) {
-  chosen = i;
+  chosen = qBound(0, i, 7);
   update();
+}
+void Viewer::setAssignments(const QStringList &labels) {
+  if (labels.size() == 8 && assignmentLabels != labels) {
+    assignmentLabels = labels;
+    update();
+  }
+}
+void Viewer::setCalloutsVisible(bool enabled) {
+  calloutsVisible = enabled;
+  update();
+}
+void Viewer::setDisplayLighting(bool enabled) {
+  displayLighting = enabled;
+  artworkCache = {};
+  syncAnimation();
+  update();
+}
+QPointF Viewer::calloutCenter(int n) const {
+  return calloutRegions.value(n).center();
 }
 void Viewer::resetView() {
   yaw = -25;
@@ -89,11 +117,13 @@ void Viewer::setLighting(const QJsonObject &settings, const QJsonObject &live) {
   update();
 }
 void Viewer::syncAnimation() {
-  bool moving = (threeD && autoRotate) ||
-                lightEffect.contains("Breath", Qt::CaseInsensitive) ||
-                lightEffect.contains("Cycle") || lightEffect.contains("Neon") ||
-                lightEffect.contains("Water") || lightEffect.contains("Wave");
-  if (isVisible() && moving && (lightEffect != "Off" || (autoRotate && threeD)))
+  bool lightingMoving =
+      displayLighting && lightEffect != "Off" &&
+      (lightEffect.contains("Breath", Qt::CaseInsensitive) ||
+       lightEffect.contains("Cycle") || lightEffect.contains("Neon") ||
+       lightEffect.contains("Water") || lightEffect.contains("Wave"));
+  bool moving = (threeD && autoRotate) || lightingMoving;
+  if (isVisible() && moving)
     animation.start();
   else
     animation.stop();
@@ -128,11 +158,15 @@ QColor Viewer::previewColor() const {
 }
 int Viewer::buttonAt(QPointF point) const {
   for (int n = 0; n < centers.size(); ++n)
-    if (QLineF(point, centers[n]).length() <= 11)
+    if (QLineF(point, centers[n]).length() <= 8)
       return n;
+  if (calloutsVisible)
+    for (int n = 0; n < calloutRegions.size(); ++n)
+      if (calloutRegions[n].contains(point))
+        return n;
   if (threeD) {
     for (auto it = pickFaces.crbegin(); it != pickFaces.crend(); ++it)
-      if (it->first.containsPoint(point, Qt::OddEvenFill))
+      if (it->second >= 0 && it->first.containsPoint(point, Qt::OddEvenFill))
         return it->second;
   } else
     for (int n = 0; n < hitRegions.size(); ++n)
@@ -142,7 +176,12 @@ int Viewer::buttonAt(QPointF point) const {
 }
 QPointF Viewer::buttonCenter(int n) const { return centers.value(n); }
 void Viewer::keyPressEvent(QKeyEvent *e) {
-  if (e->key() == Qt::Key_Home)
+  if (e->key() >= Qt::Key_1 && e->key() <= Qt::Key_8) {
+    chosen = e->key() - Qt::Key_1;
+    emit selected(chosen);
+  } else if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Space) {
+    emit selected(chosen);
+  } else if (e->key() == Qt::Key_Home)
     resetView();
   else if (e->key() == Qt::Key_Left)
     yaw -= 6;
@@ -166,225 +205,386 @@ void Viewer::keyPressEvent(QKeyEvent *e) {
 void Viewer::paintEvent(QPaintEvent *) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
-  p.fillRect(rect(), QColor("#15191f"));
+  p.fillRect(rect(), QColor("#202124"));
+  if (calloutsVisible) {
+    p.setPen(Qt::NoPen);
+    for (int y = 20; y < height() - 15; y += 24) {
+      double fade = qMax(0., 1. - qAbs(y - height() * .44) / (height() * .55));
+      for (int x = 18; x < width() - 15; x += 24) {
+        double f =
+            fade * qMax(.08, 1. - qAbs(x - width() * .5) / (width() * .53));
+        p.setBrush(QColor(160, 169, 188, int(15 * f)));
+        p.drawEllipse(QPointF(x, y), .85, .85);
+      }
+    }
+  }
   hitRegions.fill({}, 8);
+  calloutRegions.fill({}, 8);
   centers.fill({}, 8);
   pickFaces.clear();
-  QColor glow = previewColor();
-  auto badge = [&](int n, QPointF center) {
-    QPainterPath path;
-    path.addEllipse(center, 11, 11);
-    hitRegions[n].addPath(path);
-    centers[n] = center;
-    p.setPen(QPen(n == chosen ? QColor("#b5f0d4") : QColor("#566475"), 1.2));
-    p.setBrush(n == chosen ? QColor("#284e3c") : QColor("#202a35"));
-    p.drawPath(path);
-    p.setPen(n == chosen ? QColor("#d7fae9") : QColor("#b6c2d2"));
-    QFont font = p.font();
-    font.setPointSizeF(8.5);
-    font.setWeight(QFont::Medium);
-    p.setFont(font);
-    p.drawText(QRectF(center - QPointF(11, 11), QSizeF(22, 22)),
-               Qt::AlignCenter, QString::number(n + 1));
-  };
-  // Original schematic geometry. It represents physical placement, not a vendor
-  // asset.
-  if (!threeD) {
-    double scale = qMin(width() / 330., height() / 375.);
-    p.translate(width() / 2., height() / 2. - 5);
-    p.scale(scale, scale);
-    QPainterPath body;
-    body.moveTo(-45, -132);
-    body.lineTo(45, -132);
-    body.quadTo(72, -126, 78, -100);
-    body.lineTo(90, -26);
-    body.lineTo(95, 66);
-    body.quadTo(91, 119, 54, 137);
-    body.quadTo(0, 150, -54, 137);
-    body.quadTo(-91, 119, -95, 66);
-    body.lineTo(-90, -26);
-    body.lineTo(-78, -100);
-    body.quadTo(-72, -126, -45, -132);
-    body.closeSubpath();
-    QPainterPath shadow = body.translated(0, 9);
-    p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0, 0, 0, 85));
-    p.drawPath(shadow);
-    QLinearGradient shell(-95, -70, 85, 110);
-    shell.setColorAt(0, QColor("#4a5664"));
-    shell.setColorAt(.36, QColor("#333e4c"));
-    shell.setColorAt(1, QColor("#202832"));
-    p.setBrush(shell);
-    p.setPen(QPen(QColor("#5a6879"), 1.4));
-    p.drawPath(body);
+  QColor glow = displayLighting ? previewColor() : QColor("#159bff");
+  if (threeD)
+    drawThreeD(p, glow);
+  else
+    drawTop(p, glow);
+  if (calloutsVisible)
+    drawCallouts(p);
+  if (hasFocus()) {
     p.setBrush(Qt::NoBrush);
-    p.setPen(QPen(QColor(glow.red(), glow.green(), glow.blue(), 105), 5));
-    p.drawPath(body);
-    p.setPen(QPen(glow, 1.2));
-    p.drawPath(body);
-    p.setPen(QPen(QColor("#11171f"), 3));
-    p.drawLine(-72, -27, 72, -27);
-    p.drawLine(0, -126, 0, -27);
-    p.setBrush(QColor("#0c1117"));
-    p.setPen(QPen(QColor("#657183"), 1));
-    p.drawRoundedRect(QRectF(-10, -112, 20, 47), 8, 8);
-    p.setPen(QPen(QColor("#435262"), 2));
-    for (int n = 0; n < 7; ++n)
-      p.drawLine(-6, -106 + n * 5, 6, -106 + n * 5);
-    p.setPen(QPen(QColor("#617185"), 1));
-    p.setBrush(QColor("#222d38"));
-    p.drawRoundedRect(QRectF(-10, -12, 20, 20), 3, 3);
-    p.drawRoundedRect(QRectF(-10, 20, 20, 20), 3, 3);
-    p.drawRoundedRect(QRectF(-100, -27, 14, 29), 4, 4);
-    p.drawRoundedRect(QRectF(-100, 10, 14, 29), 4, 4);
-    QPainterPath fire;
-    fire.moveTo(-77, -106);
-    fire.lineTo(-56, -102);
-    fire.lineTo(-56, -67);
-    fire.lineTo(-83, -72);
-    fire.closeSubpath();
-    p.setBrush(QColor("#c35660"));
-    p.setPen(QPen(QColor("#dd9096"), 1));
-    p.drawPath(fire);
-    // Recessed LED side accents and our own center mark.
-    p.setPen(QPen(glow, 2));
-    p.drawLine(-72, 65, -64, 96);
-    p.drawLine(72, 65, 64, 96);
-    p.setPen(QPen(QColor("#7e8c9d"), 2));
-    p.drawLine(-9, 86, -9, 98);
-    p.drawArc(QRectF(-9, 90, 18, 20), 180 * 16, 180 * 16);
-    p.drawLine(9, 86, 9, 98);
-    QVector<QPointF> physical = {{-35, -69}, {35, -69}, {0, -91}, {-93, -12},
-                                 {-93, 24},  {0, -2},   {0, 30},  {-68, -85}};
-    QVector<QRectF> regions = {{-51, -114, 30, 72}, {18, -114, 47, 72},
-                               {-12, -115, 24, 52}, {-101, -28, 17, 33},
-                               {-101, 9, 17, 32},   {-12, -13, 24, 23},
-                               {-12, 18, 24, 25},   {-82, -108, 25, 43}};
-    for (int n = 0; n < 8; ++n) {
-      QPainterPath path;
-      path.addRect(regions[n]);
-      hitRegions[n] = p.transform().map(path);
-    }
-    p.resetTransform();
-    for (int n = 0; n < 8; ++n)
-      badge(n, QPointF(width() / 2. + physical[n].x() * scale,
-                       height() / 2. - 5 + physical[n].y() * scale));
-  } else {
-    struct Face {
-      QPolygonF polygon;
-      float depth;
-      QColor color;
-      int button;
-    };
-    QVector<Face> mesh;
-    QMatrix4x4 rotation;
-    rotation.rotate(pitch + 15, 1, 0, 0);
-    rotation.rotate(yaw, 0, 1, 0);
-    double scale = qMin(width() / 3.1, height() / 3.3) * zoom;
-    auto project = [&](QVector3D point) {
-      point = rotation.map(point);
-      double perspective = 5. / (5. + point.z());
-      return QPointF(width() / 2. + point.x() * scale * perspective,
-                     height() / 2. - point.y() * scale * perspective + 24);
-    };
-    auto face = [&](QVector<QVector3D> points, QColor color, int id = -1) {
-      QPolygonF poly;
-      float depth = 0;
-      for (auto point : points) {
-        poly << project(point);
-        depth += rotation.map(point).z();
-      }
-      mesh.append({poly, depth / points.size(), color, id});
-    };
-    const QVector<float> z = {-1.25f, -1.1f, -.6f, 0.f, .65f, 1.15f, 1.28f};
-    const QVector<float> width = {.40f, .61f, .74f, .81f, .82f, .57f, .30f};
-    const QVector<float> height = {.18f, .27f, .43f, .57f, .57f, .32f, .19f};
-    auto point = [&](int ring, int step) {
-      float theta = 3.14159265f * step / 16;
-      return QVector3D(-width[ring] * std::cos(theta),
-                       .1f + height[ring] * std::sin(theta), z[ring]);
-    };
-    for (int i = 0; i < z.size() - 1; ++i)
-      for (int j = 0; j < 16; ++j) {
-        QVector<QVector3D> points = {point(i, j), point(i + 1, j),
-                                     point(i + 1, j + 1), point(i, j + 1)};
-        auto normal =
-            QVector3D::normal(points[1] - points[0], points[2] - points[0]);
-        float shade = .58f + .30f * qAbs(QVector3D::dotProduct(
-                                        rotation.mapVector(normal),
-                                        QVector3D(-.3, 1, .5).normalized()));
-        int id = i < 2 ? (j < 7 ? 0 : j > 9 ? 1 : 2) : -1;
-        QColor base = QColor::fromRgbF(.22 * shade, .28 * shade, .35 * shade);
-        if (id == chosen)
-          base = QColor::fromRgbF(.27 * shade, .40 * shade, .39 * shade);
-        face(points, base, id);
-      }
-    // Closed end caps avoid holes at the nose and palm end.
-    for (int ring : {0, int(z.size() - 1)}) {
-      QVector<QVector3D> cap;
-      for (int j = 0; j <= 16; ++j)
-        cap << point(ring, j);
-      cap << QVector3D(width[ring], -.1f, z[ring])
-          << QVector3D(-width[ring], -.1f, z[ring]);
-      face(cap, QColor("#303b47"));
-    }
-    for (int i = 0; i < z.size() - 1; ++i)
-      for (int side : {-1, 1})
-        face({{side * width[i], .1f, z[i]},
-              {side * width[i + 1], .1f, z[i + 1]},
-              {side * width[i + 1], -.10f, z[i + 1]},
-              {side * width[i], -.10f, z[i]}},
-             QColor("#28313d"));
-    auto plate = [&](float x, float y, float z, float w, float length,
-                     QColor color, int id) {
-      face({{x - w, y, z - length},
-            {x + w, y, z - length},
-            {x + w, y, z + length},
-            {x - w, y, z + length}},
-           color, id);
-    };
-    plate(0, .43f, -.82f, .08f, .22f, QColor("#0d1219"), 2);
-    plate(0, .61f, -.17f, .10f, .09f, QColor("#637482"), 5);
-    plate(0, .69f, .18f, .10f, .09f, QColor("#637482"), 6);
-    plate(-.49f, .35f, -.92f, .10f, .21f, QColor("#c35660"), 7);
-    for (int n = 0; n < 2; ++n) {
-      float position = -.28f + n * .37f;
-      face({{-.83f, .13f, position - .14f},
-            {-.83f, .29f, position - .14f},
-            {-.83f, .29f, position + .14f},
-            {-.83f, .13f, position + .14f}},
-           QColor("#566577"), n + 3);
-    }
-    std::sort(mesh.begin(), mesh.end(),
-              [](const Face &a, const Face &b) { return a.depth > b.depth; });
-    p.setPen(Qt::NoPen);
-    for (const auto &f : mesh) {
-      p.setBrush(f.color);
-      p.drawPolygon(f.polygon);
-      pickFaces.append({f.polygon, f.button});
-      if (f.button >= 0)
-        hitRegions[f.button].addPolygon(f.polygon);
-    }
-    p.setPen(QPen(glow, 1.4));
-    for (int side : {-1, 1})
-      for (int i = 0; i < z.size() - 1; ++i)
-        p.drawLine(project({side * width[i], .08f, z[i]}),
-                   project({side * width[i + 1], .08f, z[i + 1]}));
-    QVector<QVector3D> controls = {{-.29f, .38f, -.76f}, {.29f, .38f, -.76f},
-                                   {0, .44f, -.82f},     {-.83f, .23f, -.28f},
-                                   {-.83f, .23f, .09f},  {0, .62f, -.17f},
-                                   {0, .7f, .18f},       {-.49f, .36f, -.92f}};
-    for (int n = 0; n < controls.size(); ++n)
-      badge(n, project(controls[n]));
+    p.setPen(QPen(QColor(21, 155, 255, 105), 1));
+    p.drawRoundedRect(rect().adjusted(1, 1, -2, -2), 4, 4);
   }
-  p.resetTransform();
-  p.setPen(QColor("#697789"));
-  QFont font = p.font();
-  font.setPointSizeF(8);
-  p.setFont(font);
-  p.drawText(QRect(8, height() - 26, width() - 16, 20), Qt::AlignCenter,
-             threeD ? "Drag to orbit · Scroll to zoom"
-                    : "8 controls · Fire button shown in red");
+}
+void Viewer::drawTop(QPainter &p, QColor glow) {
+  double h = qMin(height() * .96, 640.);
+  if (calloutsVisible)
+    h = qMin(h, qMax(300., (width() - 220) * 1.45));
+  double w = h * 517. / 793.;
+  QRectF area((width() - w) / 2., (height() - h) / 2., w, h);
+  double scale = h / 793.;
+  p.save();
+  p.translate(area.center().x(), area.bottom() - 24 * scale);
+  p.scale(1, .30);
+  QRadialGradient shadow(0, 0, area.width() * .51);
+  shadow.setColorAt(0, QColor(0, 0, 0, 180));
+  shadow.setColorAt(.5, QColor(0, 0, 0, 90));
+  shadow.setColorAt(1, QColor(0, 0, 0, 0));
+  p.setBrush(shadow);
+  p.setPen(Qt::NoPen);
+  p.drawEllipse(QPointF(0, 0), area.width() * .55, area.width() * .55);
+  p.restore();
+  QSize pixels(qCeil(w), qCeil(h));
+  qreal dpr = devicePixelRatioF();
+  if (artworkCache.isNull() || artworkSize != pixels || artworkDpr != dpr) {
+    artworkSize = pixels;
+    artworkDpr = dpr;
+    artworkCache =
+        QPixmap(qCeil(pixels.width() * dpr), qCeil(pixels.height() * dpr));
+    artworkCache.setDevicePixelRatio(dpr);
+    artworkCache.fill(Qt::transparent);
+    QPainter cache(&artworkCache);
+    cache.setRenderHint(QPainter::SmoothPixmapTransform);
+    const auto &source = displayLighting ? lightingArtwork : artwork;
+    cache.drawPixmap(QRectF(QPointF(0, 0), QSizeF(pixels)), source,
+                     QRectF(source.rect()));
+    lightingCache = {};
+  }
+  p.drawPixmap(area, artworkCache,
+               QRectF(0, 0, artworkCache.width(), artworkCache.height()));
+  if (displayLighting && lightEffect != "Off") {
+    if (lightingCache.isNull() || lightingCacheColor != glow) {
+      lightingCache = QPixmap(artworkCache.size());
+      lightingCache.setDevicePixelRatio(dpr);
+      lightingCache.fill(Qt::transparent);
+      QPainter layer(&lightingCache);
+      layer.setRenderHint(QPainter::SmoothPixmapTransform);
+      layer.drawPixmap(QRectF(QPointF(0, 0), QSizeF(pixels)), lightingMask,
+                       QRectF(lightingMask.rect()));
+      layer.setCompositionMode(QPainter::CompositionMode_SourceIn);
+      layer.fillRect(QRectF(QPointF(0, 0), QSizeF(pixels)), glow);
+      lightingCacheColor = glow;
+    }
+    p.drawPixmap(area, lightingCache,
+                 QRectF(0, 0, lightingCache.width(), lightingCache.height()));
+  }
+  QTransform transform;
+  transform.translate(area.left(), area.top());
+  transform.scale(scale, scale);
+  const QVector<QPointF> physical = {{190, 162}, {380, 158}, {285, 173},
+                                     {118, 385}, {121, 470}, {286, 311},
+                                     {286, 362}, {104, 290}};
+  const QVector<QRectF> regions = {{143, 55, 110, 185}, {332, 62, 100, 178},
+                                   {265, 106, 42, 143}, {107, 345, 29, 78},
+                                   {108, 431, 32, 83},  {267, 286, 39, 45},
+                                   {267, 338, 39, 45},  {90, 261, 29, 72}};
+  for (int n = 0; n < 8; ++n) {
+    centers[n] = transform.map(physical[n]);
+    QPainterPath r;
+    r.addRoundedRect(regions[n], 7, 7);
+    hitRegions[n] = transform.map(r);
+  }
+}
+void Viewer::drawThreeD(QPainter &p, QColor glow) {
+  struct Face {
+    QPolygonF polygon;
+    float depth;
+    QColor color;
+    int button;
+  };
+  QVector<Face> mesh;
+  QMatrix4x4 rotation;
+  rotation.rotate(pitch + 28, 1, 0, 0);
+  rotation.rotate(yaw, 0, 1, 0);
+  double scale = qMin(width() / 4.4, height() / 3.7) * zoom;
+  auto project = [&](QVector3D point) {
+    point = rotation.map(point);
+    double perspective = 5. / (5. - point.z());
+    return QPointF(width() / 2. + point.x() * scale * perspective,
+                   height() / 2. - point.y() * scale * perspective + 24);
+  };
+  auto face = [&](QVector<QVector3D> points, QColor color, int id = -1) {
+    QPolygonF poly;
+    float depth = 0;
+    for (auto point : points) {
+      poly << project(point);
+      depth += rotation.map(point).z();
+    }
+    mesh.append({poly, depth / points.size(), color, id});
+  };
+  // A closed, interpolated original shell avoids flat end caps and holes.
+  const QVector<float> lengths = {-1.39f, -1.30f, -1.10f, -.60f, 0.f,
+                                  .65f,   1.05f,  1.29f,  1.38f};
+  const QVector<float> widths = {.22f, .44f, .61f, .74f, .81f,
+                                 .82f, .66f, .35f, .025f};
+  const QVector<float> heights = {.10f, .20f, .27f, .43f, .57f,
+                                  .57f, .41f, .20f, .025f};
+  auto shape = [&](float z) {
+    int n = 0;
+    while (n < lengths.size() - 2 && z > lengths[n + 1])
+      ++n;
+    float t =
+        qBound(0.f, (z - lengths[n]) / (lengths[n + 1] - lengths[n]), 1.f);
+    auto interpolate = [&](const QVector<float> &values) {
+      float a = values[qMax(0, n - 1)], b = values[n], c = values[n + 1],
+            d = values[qMin(n + 2, int(values.size() - 1))];
+      return .5f *
+             ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t +
+              (-a + 3 * b - 3 * c + d) * t * t * t);
+    };
+    return qMakePair(qMax(.02f, interpolate(widths)),
+                     qMax(.02f, interpolate(heights)));
+  };
+  auto topY = [&](float x, float z) {
+    auto s = shape(z);
+    float ratio = qBound(-1.f, x / s.first, 1.f);
+    return .09f + s.second * std::sqrt(qMax(0.f, 1 - ratio * ratio));
+  };
+  auto shade = [&](const QVector<QVector3D> &points, QColor base) {
+    auto normal = rotation.mapVector(
+        QVector3D::normal(points[1] - points[0], points[2] - points[0]));
+    auto key = QVector3D(-.45f, .65f, .60f).normalized();
+    float diffuse = qMax(0.f, QVector3D::dotProduct(normal, key));
+    float sheen =
+        std::pow(qMax(0.f, QVector3D::dotProduct(
+                               normal, QVector3D(-.25f, .3f, 1).normalized())),
+                 18);
+    float level = .46f + .65f * diffuse;
+    return QColor::fromRgbF(qMin(1., base.redF() * level + .07 * sheen),
+                            qMin(1., base.greenF() * level + .07 * sheen),
+                            qMin(1., base.blueF() * level + .07 * sheen));
+  };
+  constexpr int rings = 48, segments = 64;
+  auto shellPoint = [&](int ring, int segment) {
+    float z =
+        lengths.front() + (lengths.back() - lengths.front()) * ring / rings;
+    auto s = shape(z);
+    float theta = 6.2831853f * segment / segments, sine = std::sin(theta);
+    return QVector3D(-s.first * std::cos(theta),
+                     .09f + (sine >= 0 ? s.second : .18f) * sine, z);
+  };
+  QPointF floor = project({0, -.10f, .30f}) + QPointF(0, 23);
+  p.save();
+  p.translate(floor);
+  p.scale(1, .36);
+  QRadialGradient shadow(0, 0, scale * 1.30);
+  shadow.setColorAt(0, QColor(0, 0, 0, 185));
+  shadow.setColorAt(.6, QColor(0, 0, 0, 75));
+  shadow.setColorAt(1, QColor(0, 0, 0, 0));
+  p.setBrush(shadow);
+  p.setPen(Qt::NoPen);
+  p.drawEllipse(QPointF(0, 0), scale * 1.30, scale * 1.30);
+  p.restore();
+  for (int i = 0; i < rings; ++i)
+    for (int j = 0; j < segments; ++j) {
+      QVector<QVector3D> points = {shellPoint(i, j), shellPoint(i + 1, j),
+                                   shellPoint(i + 1, j + 1),
+                                   shellPoint(i, j + 1)};
+      auto center = (points[0] + points[2]) / 2;
+      bool top = j < segments / 2;
+      bool front = top && center.z() < -.25f;
+      int id = front && center.x() < -.07f  ? 0
+               : front && center.x() > .07f ? 1
+                                            : -1;
+      bool seam = top && ((front && qAbs(center.x()) < .025f) ||
+                          qAbs(center.z() + .25f) < .020f);
+      QColor material(seam ? "#090a0c" : top ? "#34373c" : "#17191d");
+      if (id == chosen)
+        material = QColor("#364757");
+      face(points, shade(points, material), id);
+    }
+  for (int end : {0, rings}) {
+    QVector<QVector3D> cap;
+    for (int j = 0; j < segments; ++j)
+      cap << shellPoint(end, j);
+    face(cap, QColor("#17191d"));
+  }
+  auto roundedOutline = [](float a, float b, float radius) {
+    QVector<QPointF> outline;
+    for (int corner = 0; corner < 4; ++corner) {
+      float cx = (corner == 0 || corner == 3) ? a - radius : -a + radius,
+            cy = corner < 2 ? b - radius : -b + radius;
+      for (int step = 0; step <= 5; ++step) {
+        float angle = (corner * 90 + step * 18) * 3.14159265f / 180;
+        outline << QPointF(cx + radius * std::cos(angle),
+                           cy + radius * std::sin(angle));
+      }
+    }
+    return outline;
+  };
+  auto topControl = [&](float x, float z, float halfWidth, float halfLength,
+                        int id) {
+    auto outline = roundedOutline(halfWidth, halfLength,
+                                  qMin(halfWidth, halfLength) * .55f);
+    QVector3D center(x, topY(x, z) + .027f, z);
+    for (int n = 0; n < outline.size(); ++n) {
+      auto a = outline[n], b = outline[(n + 1) % outline.size()];
+      auto point = [&](QPointF offset, float lift) {
+        float px = x + offset.x(), pz = z + offset.y();
+        return QVector3D(px, topY(px, pz) + lift, pz);
+      };
+      auto pa = point(a, .024f), pb = point(b, .024f);
+      QVector<QVector3D> top = {center, pb, pa};
+      face(top, shade(top, QColor(id == chosen ? "#3a586e" : "#353941")), id);
+      face({pa, pb, point(b, .004f), point(a, .004f)}, QColor("#090b0e"), id);
+    }
+  };
+  topControl(0, -.84f, .13f, .25f, 2);
+  topControl(0, -.12f, .095f, .105f, 5);
+  topControl(0, .23f, .095f, .105f, 6);
+  topControl(-.43f, -.95f, .065f, .16f, 7);
+  float wheelZ = -.84f, wheelY = topY(0, wheelZ) - .015f;
+  constexpr int wheelSegments = 48;
+  auto wheelPoint = [&](int segment, float x) {
+    float angle = 6.2831853f * segment / wheelSegments;
+    return QVector3D(x, wheelY + .14f * std::sin(angle),
+                     wheelZ + .14f * std::cos(angle));
+  };
+  for (int n = 0; n < wheelSegments; ++n) {
+    QVector<QVector3D> tread = {wheelPoint(n, -.07f), wheelPoint(n, .07f),
+                                wheelPoint(n + 1, .07f),
+                                wheelPoint(n + 1, -.07f)};
+    face(tread, shade(tread, QColor(n % 3 == 0 ? "#777d86" : "#292d34")), 2);
+  }
+  for (float side : {-.07f, .07f}) {
+    QVector<QVector3D> cap;
+    for (int n = 0; n < wheelSegments; ++n)
+      cap << wheelPoint(n, side);
+    face(cap, QColor("#15171b"), 2);
+  }
+  auto sideX = [&](float y, float z) {
+    auto s = shape(z);
+    float ratio = qBound(-1.f, (y - .09f) / s.second, 1.f);
+    return -s.first * std::sqrt(qMax(0.f, 1 - ratio * ratio)) - .026f;
+  };
+  for (int id : {3, 4}) {
+    float z = id == 3 ? -.35f : .10f;
+    auto outline = roundedOutline(.16f, .062f, .04f);
+    QVector3D center(sideX(.22f, z), .22f, z);
+    for (int n = 0; n < outline.size(); ++n) {
+      auto point = [&](QPointF offset) {
+        float py = .22f + offset.y(), pz = z + offset.x();
+        return QVector3D(sideX(py, pz), py, pz);
+      };
+      QVector<QVector3D> surface = {center, point(outline[n]),
+                                    point(outline[(n + 1) % outline.size()])};
+      face(surface,
+           shade(surface, QColor(id == chosen ? "#426780" : "#555b65")), id);
+    }
+  }
+  std::sort(mesh.begin(), mesh.end(),
+            [](const Face &a, const Face &b) { return a.depth < b.depth; });
+  p.setPen(Qt::NoPen);
+  for (const auto &f : mesh) {
+    p.setBrush(f.color);
+    p.setPen(QPen(f.color, .5));
+    p.drawPolygon(f.polygon);
+    pickFaces.append({f.polygon, f.button});
+    if (f.button >= 0)
+      hitRegions[f.button].addPolygon(f.polygon);
+  }
+  QColor rim = glow;
+  rim.setAlpha(150);
+  p.setPen(QPen(rim, 1.1));
+  for (int side : {-1, 1})
+    for (int i = 0; i < rings; ++i) {
+      float a = lengths.front() +
+                (lengths.back() - lengths.front()) * i / rings,
+            b = lengths.front() +
+                (lengths.back() - lengths.front()) * (i + 1) / rings;
+      p.drawLine(project({side * shape(a).first, .075f, a}),
+                 project({side * shape(b).first, .075f, b}));
+    }
+  QVector<QVector3D> controls = {{-.30f, topY(-.30f, -.76f), -.76f},
+                                 {.30f, topY(.30f, -.76f), -.76f},
+                                 {0, wheelY + .14f, wheelZ},
+                                 {sideX(.22f, -.35f), .22f, -.35f},
+                                 {sideX(.22f, .10f), .22f, .10f},
+                                 {0, topY(0, -.12f) + .027f, -.12f},
+                                 {0, topY(0, .23f) + .027f, .23f},
+                                 {-.43f, topY(-.43f, -.95f) + .027f, -.95f}};
+  for (int n = 0; n < controls.size(); ++n)
+    centers[n] = project(controls[n]);
+}
+void Viewer::drawCallouts(QPainter &p) {
+  const QVector<int> left = {0, 7, 3, 4}, right = {1, 2, 5, 6};
+  QStringList physicalNames = {"Left button",    "Right button", "Scroll click",
+                               "Forward button", "Back button",  "Top button 1",
+                               "Top button 2",   "Fire button"};
+  double column = qBound(108., width() * .23, 240.);
+  double labelTop = qMax(22., height() * .20),
+         step = qBound(53., height() * .14, 85.);
+  for (int side = 0; side < 2; ++side) {
+    auto order = side == 0 ? left : right;
+    for (int row = 0; row < order.size(); ++row) {
+      int n = order[row];
+      QRectF r(side == 0 ? width() * .035 : width() - width() * .035 - column,
+               labelTop + row * step, column, 45);
+      calloutRegions[n] = r;
+      double y = r.top() + 29;
+      QPointF start(side == 0 ? r.right() : r.left(), y);
+      QPointF target = centers[n];
+      QPointF elbow(side == 0 ? target.x() - 36 : target.x() + 36, y);
+      bool active = n == chosen, hot = n == hovered;
+      p.setPen(QPen(QColor(active ? "#159bff"
+                           : hot  ? "#909baa"
+                                  : "#535860"),
+                    active ? 1.25 : .8));
+      p.setBrush(Qt::NoBrush);
+      QPainterPath line;
+      line.moveTo(start);
+      line.lineTo(elbow);
+      line.lineTo(target);
+      p.drawPath(line);
+      p.setBrush(QColor(active ? "#159bff" : "#8b919b"));
+      p.setPen(Qt::NoPen);
+      p.drawEllipse(start, 2, 2);
+      p.drawEllipse(target, active ? 4 : 3, active ? 4 : 3);
+      if (active) {
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(QColor(21, 155, 255, 90), 1));
+        p.drawEllipse(target, 8, 8);
+      }
+      QFont font = p.font();
+      font.setPixelSize(13);
+      font.setWeight(QFont::Medium);
+      p.setFont(font);
+      p.setPen(QColor(active ? "#f4f7fc" : hot ? "#e6ebf3" : "#b9bec8"));
+      auto label = assignmentLabels.value(n, physicalNames[n]);
+      if (label == "Middle click")
+        label = "Scroll click";
+      QFontMetrics metrics(font);
+      label = metrics.elidedText(label, Qt::ElideRight, int(r.width() - 17));
+      auto flags =
+          (side == 0 ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter;
+      p.drawText(r.adjusted(side == 0 ? 0 : 14, -4, side == 0 ? -14 : 0, -20),
+                 flags, label);
+      font.setPixelSize(10);
+      p.setFont(font);
+      p.setPen(QColor(n == 7 ? "#7d8b9e" : "#747c89"));
+      p.drawText(r.adjusted(side == 0 ? 0 : 14, 19, side == 0 ? -14 : 0, 1),
+                 flags, n == 7 ? "Remapping unavailable" : physicalNames[n]);
+    }
+  }
 }
 void Viewer::mousePressEvent(QMouseEvent *e) {
   last = e->position();
@@ -407,6 +607,14 @@ void Viewer::mousePressEvent(QMouseEvent *e) {
               (testEnabled ? " · " + testSummary() : ""));
 }
 void Viewer::mouseMoveEvent(QMouseEvent *e) {
+  if (!dragging) {
+    int n = buttonAt(e->position());
+    if (hovered != n) {
+      hovered = n;
+      setCursor(n >= 0 ? Qt::PointingHandCursor : Qt::ArrowCursor);
+      update();
+    }
+  }
   if (threeD && dragging) {
     auto delta = e->position() - last;
     if (delta.manhattanLength() > 1)

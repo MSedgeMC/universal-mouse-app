@@ -1,5 +1,7 @@
 #include "core/storage.h"
 #include "ui/window.h"
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTemporaryDir>
 #include <QtTest>
 namespace mouse {
@@ -113,22 +115,69 @@ private slots:
     QCOMPARE(w.buttons.size(), 7);
     QVERIFY(!w.profile()["settings"].toObject().contains("button8"));
     auto image = w.device.mockImage;
+    QVERIFY(!w.assignmentPanel->isVisible());
     QTest::qWait(30);
     QTest::mouseClick(w.viewer, Qt::LeftButton, Qt::NoModifier,
                       w.viewer->buttonCenter(7).toPoint());
     QVERIFY(w.assignmentRows[7]->property("selected").toBool());
+    QVERIFY(w.assignmentPanel->isVisible());
+    QCOMPARE(w.assignmentStack->currentIndex(), 7);
     QCOMPARE(w.device.mockImage, image);
     for (int n = 0; n < 5; ++n) {
       w.navigation[n]->click();
       QCOMPARE(w.tabs->currentIndex(), n);
       QVERIFY(w.navigation[n]->isChecked());
     }
+    QVERIFY(!w.assignmentPanel->isVisible());
     w.navigation[1]->click();
     int target = qMax(0, w.dpi[0]->currentIndex() - 1);
     w.dpiSlider->setValue(target);
     QCOMPARE(w.profile()["settings"].toObject()["dpi"].toArray()[0].toInt(),
              dpis[target]);
     QCOMPARE(w.device.mockImage, image);
+    w.profiles = w.saved;
+    w.close();
+    QTRY_VERIFY(!w.busy);
+  }
+  void calloutsAndStagedEditing() {
+    QTemporaryDir dir;
+    qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
+    Window w(true);
+    w.show();
+    QTRY_VERIFY(w.ready());
+    QTRY_VERIFY(!w.busy);
+    auto image = w.device.mockImage;
+    QTest::qWait(30);
+    QTest::mouseClick(w.viewer, Qt::LeftButton, Qt::NoModifier,
+                      w.viewer->calloutCenter(4).toPoint());
+    QCOMPARE(w.assignmentStack->currentIndex(), 4);
+    w.buttons[4]->setCurrentText("DPI up");
+    QCOMPARE(w.profile()["settings"].toObject()["button5"].toString(),
+             QString("DPI up"));
+    QCOMPARE(w.device.mockImage, image);
+    w.undoButton->click();
+    QCOMPARE(w.profile(), w.saved[w.profileIndex].toObject());
+    w.navigation[1]->click();
+    auto *adjust = w.findChild<QPushButton *>("adjust-stage-4");
+    QVERIFY(adjust);
+    adjust->click();
+    QCOMPARE(w.dpiEditing, 3);
+    auto other = w.dpi[0]->currentData();
+    w.dpiSlider->setValue(5);
+    QCOMPARE(w.dpi[3]->currentData().toInt(), dpis[5]);
+    QCOMPARE(w.dpi[0]->currentData(), other);
+    w.dpiEditor->setValue(1500);
+    QMetaObject::invokeMethod(w.dpiEditor, "editingFinished");
+    QCOMPARE(w.dpi[3]->currentData().toInt(), 1400);
+    w.navigation[2]->click();
+    w.brightnessSlider->setValue(3);
+    QCOMPARE(w.profile()["settings"].toObject()["brightness_raw"].toInt(), 3);
+    QCOMPARE(w.device.mockImage, image);
+    w.navigation[0]->click();
+    w.viewer->setFocus();
+    QTest::keyClick(w.viewer, Qt::Key_8);
+    QCOMPARE(w.assignmentStack->currentIndex(), 7);
+    QVERIFY(!w.findChild<QComboBox *>("button8")->isEnabled());
     w.profiles = w.saved;
     w.close();
     QTRY_VERIFY(!w.busy);
@@ -140,6 +189,8 @@ private slots:
     QTest::qWait(50);
     for (int n = 0; n < 8; ++n)
       QCOMPARE(v.buttonAt(v.buttonCenter(n)), n);
+    for (int n = 0; n < 8; ++n)
+      QCOMPARE(v.buttonAt(v.calloutCenter(n)), n);
     v.setThreeD(true);
     QTest::qWait(50);
     // Each slot has a projected independent region; frontmost visible faces
@@ -153,6 +204,53 @@ private slots:
                       v.buttonCenter(3).toPoint());
     QCOMPARE(selected.size(), 1);
     QCOMPARE(selected[0][0].toInt(), 3);
+  }
+  void essentialControlsFitCompactWindow() {
+    QTemporaryDir dir;
+    qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
+    Window w(true);
+    w.resize(1040, 720);
+    w.show();
+    QTRY_VERIFY(w.ready());
+    QTRY_VERIFY(!w.busy);
+    auto visibleInPage = [&](QWidget *control) {
+      auto *page = qobject_cast<QScrollArea *>(w.tabs->currentWidget());
+      QRect area(control->mapTo(page->viewport(), QPoint(0, 0)),
+                 control->size());
+      return control->isVisible() && page->viewport()->rect().contains(area);
+    };
+    w.selectButton(7);
+    QTest::qWait(30);
+    QVERIFY(visibleInPage(w.assignmentPanel));
+    auto *customize = qobject_cast<QScrollArea *>(w.tabs->currentWidget());
+    QCOMPARE(customize->verticalScrollBar()->maximum(), 0);
+    w.navigation[1]->click();
+    QTest::qWait(30);
+    for (auto *control :
+         {static_cast<QWidget *>(w.polling), static_cast<QWidget *>(w.timing),
+          static_cast<QWidget *>(w.dpiSlider)})
+      QVERIFY(visibleInPage(control));
+    w.navigation[2]->click();
+    QTest::qWait(30);
+    QVERIFY(visibleInPage(w.lightSummary));
+    QVERIFY(visibleInPage(w.liveSpeed));
+    w.navigation[3]->click();
+    QTest::qWait(30);
+    for (auto *control : {static_cast<QWidget *>(w.previewButton),
+                          static_cast<QWidget *>(w.macroApplyButton),
+                          static_cast<QWidget *>(w.macroStopButton),
+                          static_cast<QWidget *>(w.macroNote)})
+      QVERIFY(visibleInPage(control));
+    auto *macros = qobject_cast<QScrollArea *>(w.tabs->currentWidget());
+    QCOMPARE(macros->verticalScrollBar()->maximum(), 0);
+    w.resize(1040, 680);
+    QTest::qWait(30);
+    auto *footer = w.findChild<QFrame *>("footer");
+    QVERIFY(footer);
+    QVERIFY(w.rect().contains(
+        QRect(footer->mapTo(&w, QPoint(0, 0)), footer->size())));
+    w.close();
+    QTRY_VERIFY(!w.busy);
   }
 };
 } // namespace mouse

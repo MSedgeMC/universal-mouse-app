@@ -6,6 +6,7 @@
 #include <QIcon>
 #include <QJsonDocument>
 #include <QLockFile>
+#include <QScreen>
 #include <QTextStream>
 #include <QTimer>
 #include <unistd.h>
@@ -19,11 +20,13 @@ int main(int argc, char **argv) {
     app = std::make_unique<QCoreApplication>(argc, argv);
   else
     app = std::make_unique<QApplication>(argc, argv);
-  if (!cli)
+  if (!cli) {
+    QApplication::setStyle("Fusion");
     static_cast<QApplication *>(app.get())->setFont(
         QFont("Ubuntu", 10, QFont::Medium));
+  }
   QCoreApplication::setApplicationName("Universal Mouse App");
-  QCoreApplication::setApplicationVersion("0.2.0");
+  QCoreApplication::setApplicationVersion("0.3.0");
   QCommandLineParser p;
   p.addHelpOption();
   p.addVersionOption();
@@ -102,6 +105,14 @@ int main(int argc, char **argv) {
     mouse::require(lock.tryLock(), "Universal Mouse App is already running");
     QApplication::setWindowIcon(QIcon(":/design/universal-mouse-app.svg"));
     mouse::Window window(mock);
+    if (auto *screen = QGuiApplication::primaryScreen();
+        screen && QGuiApplication::platformName() != "offscreen") {
+      const auto available = screen->availableGeometry();
+      window.resize(qMax(window.minimumWidth(),
+                         qMin(window.width(), available.width() - 32)),
+                    qMax(window.minimumHeight(),
+                         qMin(window.height(), available.height() - 36)));
+    }
     window.show();
     if (p.isSet("verify-gui")) {
       auto *timer = new QTimer(&window);

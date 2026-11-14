@@ -1,9 +1,11 @@
 // Original UI drawing and component code, Copyright 2026 MSedgeMC. MIT.
 #include "design.h"
 #include <QFile>
+#include <QLineEdit>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QStyle>
 namespace mouse {
 QLabel *designLabel(const QString &text, const QString &role) {
   auto *label = new QLabel(text);
@@ -15,12 +17,12 @@ QLabel *designLabel(const QString &text, const QString &role) {
 QFrame *designCard(QVBoxLayout **layout, const QString &title,
                    const QString &subtitle) {
   auto *frame = new QFrame;
-  frame->setProperty("surface", "card");
+  frame->setProperty("surface", "panel");
   *layout = new QVBoxLayout(frame);
-  (*layout)->setContentsMargins(20, 18, 20, 18);
-  (*layout)->setSpacing(13);
+  (*layout)->setContentsMargins(22, 18, 22, 18);
+  (*layout)->setSpacing(12);
   if (!title.isEmpty())
-    (*layout)->addWidget(designLabel(title, "section"));
+    (*layout)->addWidget(designLabel(title.toUpper(), "section"));
   if (!subtitle.isEmpty())
     (*layout)->addWidget(designLabel(subtitle, "muted"));
   return frame;
@@ -46,6 +48,19 @@ QIcon designIcon(const QString &name, QColor color, int size) {
       p.drawLine(2, 6, 2, 11);
       p.drawLine(22, 14, 22, 19);
     }
+  } else if (name == "layers") {
+    p.drawPolygon(QPolygonF({{3, 8}, {12, 3}, {21, 8}, {12, 13}}));
+    p.drawLine(3, 13, 12, 18);
+    p.drawLine(12, 18, 21, 13);
+    p.drawLine(3, 18, 12, 23);
+    p.drawLine(12, 23, 21, 18);
+  } else if (name == "close") {
+    p.drawLine(6, 6, 18, 18);
+    p.drawLine(18, 6, 6, 18);
+  } else if (name == "more") {
+    p.setBrush(color);
+    for (int x : {5, 12, 19})
+      p.drawEllipse(QPointF(x, 12), 1.2, 1.2);
   } else if (name == "buttons") {
     p.drawRoundedRect(QRectF(4, 4, 7, 7), 2, 2);
     p.drawRoundedRect(QRectF(14, 4, 6, 7), 2, 2);
@@ -102,5 +117,71 @@ QIcon designIcon(const QString &name, QColor color, int size) {
     p.drawPoint(QPointF(12, 6));
   }
   return QIcon(image);
+}
+LevelSpin::LevelSpin(bool brightness) : brightness(brightness) {
+  setRange(0, 7);
+  lineEdit()->setReadOnly(true);
+}
+QString LevelSpin::textFromValue(int value) const {
+  if (brightness)
+    return value <= 6 ? QString::number(qRound((6 - value) * 100. / 6)) + " %"
+                      : "Unverified value";
+  const QStringList names = {"Slowest",        "Slow",          "Balanced",
+                             "Quick",          "Fast",          "Fastest",
+                             "Unverified (6)", "Unverified (7)"};
+  return names.value(value);
+}
+QSize MacroEventDelegate::sizeHint(const QStyleOptionViewItem &,
+                                   const QModelIndex &) const {
+  return {260, 62};
+}
+void MacroEventDelegate::paint(QPainter *p, const QStyleOptionViewItem &option,
+                               const QModelIndex &index) const {
+  p->save();
+  p->setRenderHint(QPainter::Antialiasing);
+  QRectF r = option.rect.adjusted(6, 2, -6, -2);
+  bool selected = option.state & QStyle::State_Selected;
+  p->setPen(Qt::NoPen);
+  p->setBrush(QColor(selected ? "#16354e" : "#202124"));
+  p->drawRoundedRect(r, 4, 4);
+  QPointF dot(r.left() + 23, r.center().y());
+  p->setBrush(QColor("#2a2c30"));
+  p->drawEllipse(dot, 13, 13);
+  p->setPen(QColor("#a8abb1"));
+  QFont font = option.font;
+  font.setPixelSize(11);
+  p->setFont(font);
+  p->drawText(QRectF(dot - QPointF(13, 13), QSizeF(26, 26)), Qt::AlignCenter,
+              QString::number(index.row() + 1));
+  QString type = index.data(Qt::UserRole).toString();
+  QString key = index.data(Qt::UserRole + 1).toString();
+  QString name = type == "delay" ? "Delay" : key;
+  QString detail = type == "delay"  ? "Wait before the next event"
+                   : type == "down" ? "Key press"
+                                    : "Key release";
+  font.setPixelSize(15);
+  font.setWeight(QFont::Medium);
+  p->setFont(font);
+  p->setPen(QColor("#f0f1f3"));
+  p->drawText(QRectF(r.left() + 49, r.top() + 8, r.width() - 145, 21),
+              Qt::AlignLeft | Qt::AlignVCenter, name);
+  font.setPixelSize(11);
+  p->setFont(font);
+  p->setPen(QColor("#90949d"));
+  p->drawText(QRectF(r.left() + 49, r.top() + 31, r.width() - 145, 18),
+              Qt::AlignLeft | Qt::AlignVCenter, detail);
+  p->setPen(QColor(type == "down" ? "#159bff" : "#a3a8b2"));
+  QString tail = type == "delay"
+                     ? index.data(Qt::UserRole + 2).toString() + " ms"
+                 : type == "down" ? "DOWN"
+                                  : "UP";
+  p->drawText(QRectF(r.right() - 93, r.top(), 76, r.height()),
+              Qt::AlignRight | Qt::AlignVCenter, tail);
+  if (option.state & QStyle::State_HasFocus) {
+    p->setBrush(Qt::NoBrush);
+    p->setPen(QPen(QColor("#159bff"), 1));
+    p->drawRoundedRect(r, 4, 4);
+  }
+  p->restore();
 }
 } // namespace mouse
